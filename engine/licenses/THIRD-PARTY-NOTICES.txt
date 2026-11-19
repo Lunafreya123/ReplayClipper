@@ -1,0 +1,113 @@
+Replay Clipper recording engine: licences and source
+=====================================================
+
+The "engine" folder is a separate program from the Replay Clipper application. It consists of
+
+  1. ReplayClipperEngine.exe (bin\64bit), a small helper written for Replay Clipper, and
+  2. unmodified binaries of OBS Studio 33.0.1 and of the libraries OBS Studio ships with.
+
+The Replay Clipper application starts the helper as a separate process and exchanges messages with
+it over a named pipe (protocol: src\engine\PROTOCOL.md). The application does not link to any file in
+this folder.
+
+
+1. ReplayClipperEngine.exe
+--------------------------
+Licence: GNU General Public License, version 2 or (at your option) any later version
+         (GPL-2.0-or-later; text in GPL-2.0.txt, later version in GPL-3.0.txt).
+Source:  the complete source is distributed with this program in src\engine\ (six .cs files) and is
+         built with build.cmd, using only the C# compiler that is part of Windows.
+
+
+2. OBS Studio 33.0.1 (unmodified, official Windows x64 build)
+-------------------------------------------------------------
+Files:   bin\64bit\obs.dll, libobs-d3d11.dll, libobs-winrt.dll, w32-pthreads.dll,
+         bin\64bit\obs-ffmpeg-mux.exe, obs-amf-test.exe, obs-nvenc-test.exe, obs-qsv-test.exe,
+         core\win-capture\win-capture.dll, core\win-wasapi\win-wasapi.dll,
+         core\obs-ffmpeg\obs-ffmpeg.dll, core\obs-x264\obs-x264.dll,
+         core\obs-nvenc\obs-nvenc.dll, core\obs-qsv11\obs-qsv11.dll,
+         data\libobs\*.effect (21 files)
+Licence: GNU General Public License, version 2 or later. Copyright (C) Lain Bailey and the
+         OBS Studio contributors.
+Origin:  copied unchanged from an installation of OBS Studio 33.0.1 for Windows
+         (https://obsproject.com/). SHA-256 of every file: FILES.sha256.txt.
+Source:  https://github.com/obsproject/obs-studio , tag 33.0.1
+         https://github.com/obsproject/obs-studio/archive/refs/tags/33.0.1.tar.gz
+         w32-pthreads.dll is built from deps/w32-pthreads in that tree (POSIX Threads for Windows,
+         LGPL-2.1-or-later). obs-qsv11 contains Intel libvpl (MIT); obs-nvenc is built against
+         nv-codec-headers 13.0.19.0 (MIT); obs-ffmpeg's AMD encoder against AMF 1.5.0 headers (MIT).
+
+
+3. Libraries shipped by OBS Studio 33.0.1 (unmodified)
+------------------------------------------------------
+All of these come from the OBS project's dependency package "obs-deps" release 2026-10-23
+(windows-x64, SHA-256 7508972a867a0ef68c26cd8bdba61fd999edd0a92fa9eb9585774de9bf51bfbe), which
+OBS Studio 33.0.1 pins in its CMakePresets.json:
+
+  https://github.com/obsproject/obs-deps/releases/tag/2026-10-23
+
+The build scripts there (deps.ffmpeg\*.ps1, deps.windows\*.ps1, with the patches they apply) name
+the exact upstream source of each library; they are repeated below.
+
+FFmpeg n8.1.2
+  Files:   bin\64bit\avcodec-62.dll (62.28.102), avformat-62.dll (62.12.102), avutil-60.dll
+           (60.26.102), avfilter-11.dll (11.14.102), avdevice-62.dll (62.3.102),
+           swscale-9.dll (9.5.102), swresample-6.dll (6.3.102)
+  Licence: GNU General Public License, version 3 or later, as configured by obs-deps
+           (--enable-gpl --enable-version3). Text: GPL-3.0.txt.
+  Source:  https://github.com/FFmpeg/FFmpeg.git , commit 38b88335f99e76ed89ff3c93f877fdefce736c13
+  Compiled into these DLLs:
+    libaom 3.13.1        BSD-2-Clause      https://aomedia.googlesource.com/aom.git  d772e334cc724105040382a977ebb10dfd393293
+    SVT-AV1 2.3.0        BSD-3-Clause-Clear https://gitlab.com/AOMediaCodec/SVT-AV1.git  6e69def4ec283fe0b71195671245c3b768bebdef
+    libvpx 1.14.1        BSD-3-Clause      https://github.com/webmproject/libvpx/archive/refs/tags/v1.14.1.zip
+    libopus 1.5.2        BSD-3-Clause      https://github.com/xiph/opus.git  ddbe48383984d56acd9e1ab6a090c54ca6b735a6
+    libvorbis 1.3.7      BSD-3-Clause      https://gitlab.xiph.org/xiph/vorbis.git  2eac96b03ff67953354cb0a649c08aa3a23267ef
+    libogg 1.3.5         BSD-3-Clause      https://github.com/xiph/ogg.git  fa80aae9d50096160f2b56ada35527d7aee3f746
+    libtheora 1.1.1      BSD-3-Clause      https://ftp.osuosl.org/pub/xiph/releases/theora/libtheora-1.1.1.zip
+    LAME 3.100           LGPL-2.0-or-later https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz
+    nv-codec-headers 13.0.19.0  MIT        https://github.com/FFmpeg/nv-codec-headers.git  e844e5b26f46bb77479f063029595293aa8f812d
+    AMF 1.5.0 (headers)  MIT               https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git  afed28d37aca1938da2eedc50599bb3535a987ec
+
+x264 r3106 (0.164.3106 eaa68fa)
+  File:    bin\64bit\libx264-164.dll
+  Licence: GNU General Public License, version 2 or later
+  Source:  https://github.com/mirror/x264.git , commit eaa68fad9e5d201d42fde51665f2d137ae96baf0
+
+zlib 1.3.1
+  File:    bin\64bit\zlib.dll
+  Licence: zlib licence
+  Source:  https://github.com/madler/zlib.git , commit 51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf
+
+SRT 1.5.2 (with the patches in obs-deps deps.ffmpeg\patches\srt)
+  File:    bin\64bit\srt.dll
+  Licence: Mozilla Public License 2.0
+  Source:  https://github.com/Haivision/srt/archive/refs/tags/v1.5.2.zip
+  Contains Mbed TLS 3.6.4 (Apache-2.0 OR GPL-2.0-or-later), https://github.com/Mbed-TLS/mbedtls.git
+           commit c765c831e5c2a0971410692f92f7a81d6ec65ec2
+
+librist 0.2.7
+  File:    bin\64bit\librist.dll
+  Licence: BSD-2-Clause
+  Source:  https://code.videolan.org/rist/librist.git , commit 809390b3b75a259a704079d0fb4d8f1b5f7fa956
+  Contains Mbed TLS 3.6.4 (see SRT).
+
+curl 8.12.1
+  File:    bin\64bit\libcurl.dll
+  Licence: curl licence (MIT-style). Copyright (C) Daniel Stenberg and contributors.
+  Source:  https://github.com/curl/curl.git , commit 57495c64871d18905a0941db9196ef90bafe9a29
+  Note:    win-capture.dll imports this DLL, so it has to be present. Replay Clipper ships no plugin
+           data folders, and the helper makes no network requests.
+
+
+Obtaining the source
+--------------------
+Every binary above is unmodified, and the complete corresponding source is available from the
+locations listed. The source of the helper is included with this program and, with the rest of
+Replay Clipper, published at https://github.com/Lunafreya123/ReplayClipper . If any of the
+locations above has become unavailable, the distributor of this copy of Replay Clipper will provide
+the corresponding source of the binaries in this folder on request for at least three years after
+distributing this copy, for no more than the cost of making the copy (open an issue at
+https://github.com/Lunafreya123/ReplayClipper/issues ).
+
+The names "OBS" and "OBS Studio" are trademarks of their owners. Replay Clipper is not affiliated
+with or endorsed by the OBS Project.

@@ -1,0 +1,25 @@
+# Build output (build.cmd builds in place, build-installer.cmd writes to dist\)
+/ReplayClipper.exe
+/Uninstall.exe
+/engine/bin/64bit/ReplayClipperEngine.exe
+/dist/
+
+# Binary dependencies, see "Building" in README.en.md
+/Microsoft.Web.WebView2.Core.dll
+/Microsoft.Web.WebView2.WinForms.dll
+/WebView2Loader.dll
+/engine/bin/
+/engine/core/
+/engine/data/
+/ffmpeg/ffmpeg.exe
+/tools/innosetup/
+
+# Created when the app runs from this folder
+/data/
+
+# Engine test tools
+/tools/engine-tools/*.exe
+
+*.pdb
+Thumbs.db
+desktop.ini

@@ -1,0 +1,2489 @@
+<!doctype html>
+<html lang="zh-CN" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="google" content="notranslate">
+<meta name="color-scheme" content="dark">
+<title>Replay Clipper</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='0' x2='.3' y2='1'%3E%3Cstop offset='0' stop-color='%235a3df0'/%3E%3Cstop offset='1' stop-color='%233526b8'/%3E%3C/linearGradient%3E%3ClinearGradient id='f' x1='0' y1='0' x2='.5' y2='1'%3E%3Cstop offset='0' stop-color='%235fd9ff'/%3E%3Cstop offset='1' stop-color='%232f78ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M11 16.5V55L43.5 35.75z' fill='url(%23b)' stroke='url(%23b)' stroke-width='10.4' stroke-linejoin='round'/%3E%3Cpath d='M21.5 9.5V48L54 28.75z' fill='url(%23f)' stroke='url(%23f)' stroke-width='10.4' stroke-linejoin='round' opacity='.94'/%3E%3C/svg%3E">
+<style>
+/*
+  设计依据：Windows 11 的 Fluent 2 设计规范（深色主题）。
+  - 中性色表面分层：窗口底色 → 卡片 → 控件，靠 1px 描边和细微明度差区分，不用发光和大面积渐变
+  - 强调色只用在"当前唯一的主操作"和选中状态上
+  - 圆角：控件 4px，卡片/对话框 8px；间距按 4px 网格
+  - 字体：Segoe UI Variable（中文回落到微软雅黑 UI），字号阶梯 12 / 14 / 20 / 28
+*/
+:root {
+  color-scheme: dark;
+  --bg: #202020;
+  --layer: #272727;
+  --card: rgba(255, 255, 255, .051);
+  --card-hover: rgba(255, 255, 255, .083);
+  --card-press: rgba(255, 255, 255, .033);
+  --ctrl: rgba(255, 255, 255, .061);
+  --ctrl-hover: rgba(255, 255, 255, .084);
+  --ctrl-press: rgba(255, 255, 255, .033);
+  --stroke: rgba(255, 255, 255, .07);
+  --stroke-top: rgba(255, 255, 255, .093);
+  --stroke-card: rgba(0, 0, 0, .28);
+  --divider: rgba(255, 255, 255, .083);
+  --text: #ffffff;
+  --text2: rgba(255, 255, 255, .786);
+  --text3: rgba(255, 255, 255, .545);
+  --text-dis: rgba(255, 255, 255, .363);
+  --accent: #60cdff;
+  --accent-hover: #5bbde9;
+  --accent-press: #56aed4;
+  --accent-text: #99ebff;
+  --on-accent: #000000;
+  --ok: #6ccb5f;
+  --warn: #fce100;
+  --err: #ff99a4;
+  --r-ctrl: 4px;
+  --r-card: 8px;
+  --ease: cubic-bezier(0, 0, 0, 1);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 14px/20px "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  overflow: hidden; user-select: none; display: flex; flex-direction: column;
+}
+[hidden] { display: none !important; }
+button, input, select { font: inherit; color: inherit; }
+svg { flex: none; display: block; }
+h1, h2, h3, p { margin: 0; }
+.subtitle { font: 600 20px/28px "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+.title { font: 600 28px/36px "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+.strong { font-weight: 600; }
+.caption { font-size: 12px; line-height: 16px; color: var(--text2); }
+.spacer { flex: 1; }
+.num { font-variant-numeric: tabular-nums; }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid #fff; outline-offset: 1px; border-radius: var(--r-ctrl); }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 32px; padding: 0 12px;
+  border-radius: var(--r-ctrl); border: 1px solid var(--stroke); border-top-color: var(--stroke-top);
+  background: var(--ctrl); cursor: default; white-space: nowrap;
+  transition: background .083s var(--ease), color .083s var(--ease);
+}
+.btn:hover:not(:disabled) { background: var(--ctrl-hover); }
+.btn:active:not(:disabled) { background: var(--ctrl-press); color: var(--text2); }
+.btn:disabled { color: var(--text-dis); background: rgba(255, 255, 255, .042); }
+.btn.accent { background: var(--accent); color: var(--on-accent); border-color: rgba(255, 255, 255, .08); border-bottom-color: rgba(0, 0, 0, .14); font-weight: 600; }
+.btn.accent:hover:not(:disabled) { background: var(--accent-hover); }
+.btn.accent:active:not(:disabled) { background: var(--accent-press); color: rgba(0, 0, 0, .6); }
+.btn.accent:disabled { background: rgba(255, 255, 255, .158); color: rgba(255, 255, 255, .53); border-color: transparent; }
+.btn.subtle { background: transparent; border-color: transparent; }
+.btn.subtle:hover:not(:disabled) { background: var(--ctrl); }
+.btn.subtle:active:not(:disabled) { background: var(--ctrl-press); }
+.btn.danger:hover:not(:disabled) { color: var(--err); }
+.icon-btn {
+  width: 32px; height: 32px; border-radius: var(--r-ctrl); border: 0; background: transparent; cursor: default;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--text); transition: background .083s var(--ease);
+}
+.icon-btn:hover:not(:disabled) { background: var(--ctrl); }
+.icon-btn:active:not(:disabled) { background: var(--ctrl-press); color: var(--text2); }
+.icon-btn:disabled { color: var(--text-dis); }
+.link { border: 0; background: transparent; color: var(--accent-text); padding: 0; cursor: default; }
+.link:hover { color: var(--accent); text-decoration: underline; }
+.ring { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+kbd { font: 12px/16px "Segoe UI Variable Text", "Segoe UI", sans-serif; color: var(--text3); }
+
+/* ---------- 输入 ---------- */
+.textbox, .combo {
+  height: 32px; width: 100%; min-width: 0; padding: 0 10px; border-radius: var(--r-ctrl); user-select: text;
+  background: var(--ctrl); border: 1px solid var(--stroke); border-bottom-color: rgba(255, 255, 255, .545);
+  transition: background .083s var(--ease);
+}
+.textbox:hover, .combo:hover { background: var(--ctrl-hover); }
+.textbox:focus { background: #1e1e1e; border-bottom: 2px solid var(--accent); outline: none; }
+.textbox::placeholder { color: var(--text3); }
+.combo { border-bottom-color: var(--stroke); border-top-color: var(--stroke-top); padding-right: 6px; background-color: #353535; }
+.combo:hover { background-color: #3c3c3c; }
+/* 下拉列表是系统画的：不指定的话会是浅底白字，看不清 */
+.combo option { background-color: #2c2c2c; color: #fff; }
+.combo:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.checkbox { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; color: var(--text); }
+.checkbox input { appearance: none; -webkit-appearance: none; width: 20px; height: 20px; margin: 0; border-radius: var(--r-ctrl); border: 1px solid rgba(255, 255, 255, .545); background: rgba(0, 0, 0, .1); display: grid; place-items: center; }
+.checkbox input:hover { background: rgba(255, 255, 255, .04); }
+.checkbox input:checked { background: var(--accent); border-color: var(--accent); }
+.checkbox input:checked::after { content: ""; width: 10px; height: 5px; border-left: 1.6px solid #000; border-bottom: 1.6px solid #000; transform: translateY(-1px) rotate(-45deg); }
+.toggle { display: inline-flex; align-items: center; gap: 12px; }
+.toggle input { appearance: none; -webkit-appearance: none; width: 40px; height: 20px; margin: 0; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .545); background: rgba(0, 0, 0, .1); position: relative; transition: background .083s; }
+.toggle input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--text2); transition: left .167s var(--ease), background .083s; }
+.toggle input:checked { background: var(--accent); border-color: var(--accent); }
+.toggle input:checked::after { left: 23px; background: #000; }
+/* 分段选择 */
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 6px; background: rgba(0, 0, 0, .14); border: 1px solid var(--stroke); }
+.seg button { position: relative; min-height: 26px; padding: 0 12px; border-radius: var(--r-ctrl); border: 1px solid transparent; background: transparent; color: var(--text2); cursor: default; white-space: nowrap; }
+.seg button:hover { background: var(--ctrl); color: var(--text); }
+.seg button.on { background: var(--ctrl-hover); border-color: var(--stroke); border-top-color: var(--stroke-top); color: var(--text); }
+.seg button.on::after { content: ""; position: absolute; left: 50%; bottom: 0; width: 16px; height: 3px; margin-left: -8px; border-radius: 2px; background: var(--accent); }
+/* 滑块 */
+input[type=range].slider { -webkit-appearance: none; appearance: none; width: 96px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent) var(--p, 100%), rgba(255, 255, 255, .545) var(--p, 100%)); }
+input[type=range].slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); border: 4px solid #454545; box-shadow: 0 0 0 1px rgba(0, 0, 0, .3); transition: border-width .1s; }
+input[type=range].slider:hover::-webkit-slider-thumb { border-width: 3px; }
+
+/* ---------- 应用栏 ---------- */
+.appbar { height: 48px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 12px 0 16px; }
+/* 没有系统标题栏时，这一条就是标题栏：空白处可以拖动窗口、双击最大化 */
+body.frameless .appbar { padding-right: 0; -webkit-app-region: drag; app-region: drag; }
+body.frameless .appbar button, body.frameless .appbar .wincap { -webkit-app-region: no-drag; app-region: no-drag; }
+.wincap { display: flex; align-self: stretch; margin-left: 8px; position: relative; z-index: 50; }
+.wincap button { width: 46px; border: 0; border-radius: 0; background: transparent; color: var(--text); display: grid; place-items: center; cursor: default; transition: background .083s var(--ease); }
+.wincap button svg { width: 10px; height: 10px; overflow: visible; }
+.wincap button:hover { background: rgba(255, 255, 255, .061); }
+.wincap button:active { background: rgba(255, 255, 255, .033); color: var(--text2); }
+.wincap button.close:hover { background: #c42b1c; color: #fff; }
+.wincap button.close:active { background: #b3271c; color: rgba(255, 255, 255, .7); }
+body.inactive .wincap button:not(:hover), body.inactive .appbar .brand { color: var(--text3); }
+.appbar .brand { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text); }
+.appbar .back { margin-left: -8px; margin-right: 4px; }
+
+/* ---------- 页面 ---------- */
+.page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#home { overflow-y: auto; padding: 8px 36px 36px; gap: 28px; }
+#home::-webkit-scrollbar, .dialog-body::-webkit-scrollbar { width: 14px; }
+#home::-webkit-scrollbar-thumb, .dialog-body::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .3); border-radius: 7px; border: 5px solid transparent; background-clip: padding-box; }
+#home::-webkit-scrollbar-thumb:hover, .dialog-body::-webkit-scrollbar-thumb:hover { border-width: 4px; }
+
+/* 首页：保存最近的画面 */
+.capture { flex: none; }
+/* 标题和录制状态在同一行（放不下时状态折到下一行），下面一行是说明：整块靠左，和时长按钮是一个整体 */
+.cap-head { margin-bottom: 16px; }
+.cap-title { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 20px; }
+.cap-head .caption { margin-top: 4px; }
+.rec { display: flex; align-items: baseline; gap: 8px; color: var(--text2); }
+.rec .dot { align-self: center; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.rec .link { margin-left: 4px; }
+/* 时长按钮排成一行，最后跟着「编辑」。每个按钮宽 128 到 204px，是内容区的五分之一（减去间隔）：五个排满最宽 5 × 204 + 4 × 8 = 1052px。
+   五个按钮加上「编辑」一行放不下时，按钮们各让出一点宽度（不小于 128px），整行正好占满内容区，和下面的四张片段卡片两边对齐；
+   窗口够宽时按钮是 204px，「编辑」跟在最后一个后面。 */
+.tiles { display: flex; gap: 8px; position: relative; }
+.tile {
+  flex: 0 1 min(204px, calc((100% - 32px) / 5)); min-width: 128px;
+  position: relative; min-height: 92px; padding: 12px 16px 14px; border-radius: var(--r-card); text-align: left;
+  background: var(--card); border: 1px solid var(--stroke-card); cursor: default;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
+  transition: background .083s var(--ease);
+}
+.tile:hover:not(:disabled) { background: var(--card-hover); }
+.tile:active:not(:disabled) { background: var(--card-press); }
+.tile:disabled { color: var(--text-dis); }
+.tile:disabled .sub { color: var(--text-dis); }
+.tile .big { display: flex; align-items: baseline; gap: 6px; min-height: 36px; }
+.tile .big .n { font: 600 28px/36px "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", sans-serif; font-variant-numeric: tabular-nums; }
+.tile .big .u { color: var(--text2); }
+.tile:disabled .big .u { color: var(--text-dis); }
+.tile .big.plain { align-items: center; gap: 10px; }
+.tile .sub { font-size: 12px; line-height: 16px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .sub.none { color: var(--text-dis); }
+.tile:not(:disabled) .sub.bad { color: var(--err); }
+.tile.busy { background: var(--card-press); overflow: hidden; }
+/* 存得久的时候（一秒以上）：转圈换成百分比，按钮底边一条细细的进度 */
+.tile .big.plain { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tile .prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, .06); }
+.tile .prog i { display: block; width: 0; height: 100%; border-radius: 0 2px 2px 0; background: var(--accent); transition: width .25s linear; }
+.tile.busy.pct .big { color: var(--text2); }
+body:not(.frameless) .tile .prog i { transition-duration: .4s; }      /* 用浏览器窗口显示时进度是问来的，来得稀一些 */
+.tile-edit { flex: none; align-self: center; }
+/* 窗口比正常的最小宽度还窄时（比如用 Edge 窗口显示）：一行放不下就折行 */
+@media (max-width: 848px) { .tiles { flex-wrap: wrap; } }
+@keyframes pop { from { opacity: 0; transform: translateY(-6px); } }
+
+/* 提示条 */
+.infobar { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 8px 8px 14px; border-radius: var(--r-ctrl); background: var(--layer); border: 1px solid var(--stroke-card); margin-bottom: 12px; }
+.infobar.warn { background: #433519; }
+.infobar.error { background: #442726; }
+.infobar.success { background: #393d1b; }
+.infobar .ico { color: var(--accent); }
+.infobar.warn .ico { color: var(--warn); }
+.infobar.error .ico { color: var(--err); }
+.infobar.success .ico { color: var(--ok); }
+.infobar .msg { flex: 1; min-width: 0; padding: 4px 0; }
+.infobar .msg b { font-weight: 600; margin-right: 8px; }
+.capture .infobar { max-width: 1052px; }      /* 窗口再宽也只到五个时长按钮（也就是四张片段卡片）那么宽 */
+
+/* 首页：片段库 */
+.lib-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.lib-head .strong { font-size: 14px; }
+/* 卡片的宽度跟着上面那排时长按钮走：四张卡片加三个间隔正好是五个按钮加四个间隔（1052px）。
+   内容区不到这么宽时固定四列，和上面那一行一起适当缩小，两边对齐；够宽以后卡片就是 254px，窗口再宽只是多排几列。
+   所以窗口变大时卡片不会变小，变小时也不会变大。 */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, min(254px, calc((100% - 36px) / 4))); gap: 12px; }
+.clip {
+  position: relative; border-radius: var(--r-card); background: var(--card); border: 1px solid var(--stroke-card); overflow: hidden; cursor: default;
+  transition: background .083s var(--ease);
+}
+.clip:hover { background: var(--card-hover); }
+.clip:active { background: var(--card-press); }
+.clip.busy { opacity: .6; }
+.clip .thumb { aspect-ratio: 16 / 9; background: #0f0f0f; position: relative; }
+.clip .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.clip .len { position: absolute; right: 8px; bottom: 8px; padding: 2px 6px; border-radius: var(--r-ctrl); background: rgba(0, 0, 0, .7); font-size: 12px; line-height: 16px; }
+.clip .new { position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 12px; line-height: 16px; font-weight: 600; }
+.clip .body { padding: 10px 12px 12px; }
+.clip .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clip .caption { margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clip .hover { position: absolute; right: 8px; top: 8px; display: none; gap: 4px; padding: 2px; border-radius: 6px; background: rgba(32, 32, 32, .92); border: 1px solid rgba(0, 0, 0, .3); }
+.clip:hover .hover { display: flex; }
+.clip .hover .icon-btn { width: 28px; height: 28px; }
+.empty { padding: 40px 0 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--text2); text-align: center; }
+.empty svg { color: var(--text3); margin-bottom: 4px; }
+.empty p { max-width: 440px; }
+
+/* ---------- 片段页 ---------- */
+#clip { padding: 0 24px 20px; gap: 12px; }
+.clip-head { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.clip-head .meta { min-width: 0; margin-right: 12px; }
+.clip-head .meta .caption { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stage { flex: 1; min-height: 0; background: #000; border-radius: var(--r-card); overflow: hidden; position: relative; border: 1px solid var(--stroke-card); }
+.stage video, .stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.stage .infobar { position: absolute; left: 12px; right: 12px; bottom: 0; }
+.transport { display: flex; align-items: center; gap: 8px; height: 36px; }
+.transport .time { margin: 0 8px 0 4px; color: var(--text2); }
+.transport .time b { color: var(--text); font-weight: 400; }
+.transport .combo { width: 76px; }
+.tlwrap { padding: 0 14px; }
+.ruler { height: 18px; position: relative; font-size: 12px; line-height: 16px; color: var(--text3); }
+.ruler span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.timeline { height: 60px; position: relative; border-radius: var(--r-ctrl); background: #0f0f0f; touch-action: none; }
+/* 缩略图条：每一排对应一段时间；时间轴缩放后旧的一排先按比例挪到新位置，新的一排加载好再把它换掉 */
+.strip { position: absolute; inset: 0; border-radius: var(--r-ctrl); overflow: hidden; }
+.strip .row { position: absolute; top: 0; bottom: 0; display: flex; }
+.strip img { flex: 1 1 0; min-width: 0; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+/* 时间轴放大后，下面这一条表示当前显示的是整段里的哪一部分，可以拖着平移 */
+.tlscroll { height: 14px; margin-top: 8px; position: relative; touch-action: none; visibility: hidden; }
+.tlscroll::before { content: ""; position: absolute; left: 0; right: 0; top: 5px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .08); }
+.tlscroll .thumb { position: absolute; top: 3px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .44); }
+.tlscroll .thumb:hover, .tlscroll.dragging .thumb { background: rgba(255, 255, 255, .62); }
+.transport .zoomfit { min-width: 48px; padding: 0 6px; }
+.shade { position: absolute; top: 0; bottom: 0; background: rgba(15, 15, 15, .72); pointer-events: none; }
+.shade.l { left: 0; border-radius: var(--r-ctrl) 0 0 var(--r-ctrl); }
+.shade.r { right: 0; border-radius: 0 var(--r-ctrl) var(--r-ctrl) 0; }
+.selbox { position: absolute; top: -2px; bottom: -2px; border-top: 2px solid var(--accent); border-bottom: 2px solid var(--accent); pointer-events: none; }
+.handle { position: absolute; top: -2px; bottom: -2px; width: 12px; background: var(--accent); cursor: ew-resize; pointer-events: auto; display: flex; align-items: center; justify-content: center; }
+.handle::before { content: ""; position: absolute; inset: -6px -8px; }
+.handle::after { content: ""; width: 2px; height: 16px; border-radius: 1px; background: rgba(0, 0, 0, .55); }
+.handle.hl { left: -12px; border-radius: var(--r-ctrl) 0 0 var(--r-ctrl); }
+.handle.hr { right: -12px; border-radius: 0 var(--r-ctrl) var(--r-ctrl) 0; }
+.timeline:not(.trimming) .selbox, .timeline:not(.trimming) .shade { display: none; }
+.playhead { position: absolute; top: -6px; bottom: -6px; width: 2px; margin-left: -1px; background: #fff; pointer-events: none; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); border-radius: 1px; }
+/* 播放位置上方的圆点：可以直接抓着拖。线本身不挡鼠标，圆点单独响应，四周留出更大的可抓范围 */
+.playhead .knob { position: absolute; top: -5px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); pointer-events: auto; cursor: default; }
+.playhead .knob::before { content: ""; position: absolute; inset: -9px; }      /* 圆点小，可抓的范围留大一些 */
+.trimbar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: var(--r-card); background: var(--card); border: 1px solid var(--stroke-card); }
+.stat { display: flex; align-items: center; gap: 4px; padding-right: 16px; margin-right: 8px; border-right: 1px solid var(--divider); }
+.stat:last-of-type { border-right: 0; }
+.stat label { color: var(--text2); margin-right: 6px; }
+.stat b { font-weight: 600; min-width: 66px; }
+.stat .icon-btn { width: 28px; height: 28px; font-size: 16px; }
+/* 窗口窄的时候这一条放不下：数值和标签不折行，先省掉"预计大小"和一部分间距，勾选框的文字可以折成两行 */
+.stat { flex: none; white-space: nowrap; }
+.trimbar .checkbox input { flex: none; }
+@media (max-width: 1100px) {
+  #sizeT { display: none; }
+  .stat { padding-right: 8px; margin-right: 0; }
+}
+
+/* ---------- 通知 ---------- */
+#toasts { position: fixed; left: 50%; top: 56px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; z-index: 40; pointer-events: none; }
+#toasts .infobar { margin: 0; min-width: 320px; max-width: 640px; pointer-events: auto; box-shadow: 0 8px 16px rgba(0, 0, 0, .26); animation: pop .167s var(--ease); user-select: text; transition: opacity .2s; }
+#toasts .infobar.out { opacity: 0; }
+#toasts .infobar .link { white-space: nowrap; margin-left: 8px; }
+
+/* ---------- 对话框 ---------- */
+.smoke { position: fixed; inset: 0; background: rgba(0, 0, 0, .4); display: flex; align-items: center; justify-content: center; z-index: 30; animation: fade .167s linear; }
+@keyframes fade { from { opacity: 0; } }
+.dialog { width: 448px; max-width: calc(100vw - 48px); max-height: calc(100vh - 48px); display: flex; flex-direction: column; border-radius: var(--r-card); background: #2b2b2b; border: 1px solid rgba(117, 117, 117, .4); box-shadow: 0 32px 64px rgba(0, 0, 0, .37), 0 2px 21px rgba(0, 0, 0, .37); overflow: hidden; animation: grow .167s var(--ease); }
+@keyframes grow { from { opacity: 0; transform: scale(1.03); } }
+.dialog.wide { width: 620px; }
+.dialog-body { padding: 24px; overflow-y: auto; }
+.dialog-body > .subtitle { margin-bottom: 12px; }
+.dialog-body > p { color: var(--text); overflow-wrap: anywhere; }
+.dialog-foot { display: flex; gap: 8px; padding: 24px; background: var(--bg); border-top: 1px solid rgba(0, 0, 0, .3); }
+.dialog-foot .btn { flex: 1; }
+.dialog.wide .dialog-foot { justify-content: flex-end; }
+.dialog.wide .dialog-foot .btn { flex: none; min-width: 130px; }
+
+/* 配置向导里的设置卡片 */
+.settings { display: flex; flex-direction: column; gap: 4px; margin-top: 16px; }
+.scard { padding: 14px 16px; border-radius: var(--r-ctrl); background: var(--card); border: 1px solid var(--stroke-card); display: flex; flex-direction: column; gap: 10px; }
+.scard .top { display: flex; align-items: center; gap: 16px; min-height: 32px; }
+.scard .lbl { flex: 1; min-width: 0; }
+.scard .row { display: flex; align-items: center; gap: 8px; }
+.note { font-size: 12px; line-height: 16px; color: var(--text2); overflow-wrap: anywhere; }
+.note.ok { color: var(--ok); }
+.note.bad { color: var(--err); }
+/* 显示器排布图：每台显示器按它在桌面上的实际位置和大小等比例画成一个方块，点哪个就录哪个 */
+.monmap { position: relative; margin: 2px auto; }
+.mon { position: absolute; z-index: 0; padding: 0; border: 0; background: transparent; cursor: default; display: grid; place-items: center; font: 600 20px/28px "Segoe UI Variable Display", "Segoe UI", sans-serif; color: var(--text2); }
+.mon::before { content: ""; position: absolute; inset: 2px; z-index: -1; border-radius: var(--r-ctrl); background: var(--ctrl); border: 1px solid rgba(255, 255, 255, .16); transition: background .083s var(--ease); }
+.mon:hover::before { background: var(--ctrl-hover); }
+.mon.on { color: var(--text); }
+.mon.on::before { background: rgba(96, 205, 255, .16); border: 2px solid var(--accent); }
+.mon:focus-visible { outline: none; }
+.mon:focus-visible::before { box-shadow: 0 0 0 2px #fff; }
+/* 小菜单（语言） */
+.menu { position: fixed; z-index: 60; width: 168px; padding: 4px; border-radius: var(--r-card); background: #2c2c2c; border: 1px solid rgba(0, 0, 0, .4); box-shadow: 0 8px 16px rgba(0, 0, 0, .26); display: flex; flex-direction: column; gap: 2px; animation: pop .167s var(--ease); }
+.menu button { position: relative; height: 36px; padding: 0 12px 0 16px; border: 0; border-radius: var(--r-ctrl); background: transparent; text-align: left; cursor: default; }
+.menu button:hover, .menu button.on { background: var(--ctrl); }
+.menu button.on::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--accent); }
+.dialog .infobar { margin: 12px 0 0; }
+.scard .row .textbox.mins { width: 72px; text-align: center; }
+/* 单选项：圆点在左，右边是标题和一行说明 */
+.choice { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; }
+.choice input { appearance: none; -webkit-appearance: none; flex: none; width: 20px; height: 20px; margin: 0; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .545); background: rgba(0, 0, 0, .1); display: grid; place-items: center; }
+.choice input:hover { background: rgba(255, 255, 255, .04); }
+.choice input:checked { background: var(--accent); border-color: var(--accent); }
+.choice input:checked::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #000; }
+.choice input:focus-visible { border-radius: 50%; }
+.choice .caption { display: block; margin-top: 2px; }
+
+/* 时长与快捷键：每行一个时长，三栏——时长、快捷键、删除 */
+.dialog.slots { width: 520px; }
+.dialog.slots:focus-visible { outline: none; }
+.slot-head, .slot-row { display: grid; grid-template-columns: 188px minmax(0, 1fr) 32px; column-gap: 16px; align-items: center; }
+.slot-head { margin-top: 20px; padding-bottom: 6px; }
+.slot-list { display: flex; flex-direction: column; gap: 8px; }
+.slot-row .len { display: flex; align-items: center; gap: 8px; }
+.slot-row .len .textbox { width: 56px; text-align: center; }
+.slot-row .len span { min-width: 22px; color: var(--text2); }
+.slot-row .note { grid-column: 1 / -1; margin-top: 4px; }
+.textbox.bad, .textbox.bad:focus, .hk.bad .hk-main { border-bottom-color: var(--err); }
+/* 快捷键输入框：样子同文本框。点一下（或回车）开始录入，这时底边变成强调色 */
+.hk { position: relative; display: flex; min-width: 0; }
+.hk-main {
+  flex: 1; min-width: 0; height: 32px; line-height: 30px; padding: 0 34px 0 10px; border-radius: var(--r-ctrl); cursor: default;
+  background: var(--ctrl); border: 1px solid var(--stroke); border-bottom-color: rgba(255, 255, 255, .545);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .083s var(--ease);
+}
+.hk-main:hover { background: var(--ctrl-hover); }
+.hk-main.unset { color: var(--text3); }
+.hk.rec .hk-main, .hk.rec.bad .hk-main { background: #1e1e1e; border-bottom: 2px solid var(--accent); line-height: 29px; color: var(--text2); outline: none; }
+.hk-clear { position: absolute; right: 4px; top: 4px; width: 24px; height: 24px; color: var(--text2); }
+.slot-add { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.dialog.slots .dialog-foot .btn { flex: none; min-width: 96px; }
+</style>
+</head>
+<body>
+
+<header class="appbar" id="appbar">
+  <button class="icon-btn back" id="btnBack" title="返回（Esc）" data-en-title="Back (Esc)" hidden></button>
+  <div class="brand">
+    <svg width="20" height="20" viewBox="0 0 64 64"><defs><linearGradient id="lgBack" x1="0" y1="0" x2=".3" y2="1"><stop offset="0" stop-color="#5a3df0"/><stop offset="1" stop-color="#3526b8"/></linearGradient><linearGradient id="lgFront" x1="0" y1="0" x2=".5" y2="1"><stop offset="0" stop-color="#5fd9ff"/><stop offset="1" stop-color="#2f78ff"/></linearGradient></defs><path d="M11 16.5V55L43.5 35.75z" fill="url(#lgBack)" stroke="url(#lgBack)" stroke-width="10.4" stroke-linejoin="round"/><path d="M21.5 9.5V48L54 28.75z" fill="url(#lgFront)" stroke="url(#lgFront)" stroke-width="10.4" stroke-linejoin="round" opacity=".94"/></svg>
+    <span>Replay Clipper</span>
+  </div>
+  <span class="spacer"></span>
+  <button class="btn subtle" id="btnFolder" title="在文件资源管理器中打开片段文件夹" data-en-title="Open the clips folder in File Explorer"></button>
+  <button class="btn subtle" id="btnSetup" title="录制的显示器、分辨率、回放时长等" data-en-title="Display, resolution, replay length and more"></button>
+  <button class="btn subtle" id="btnLang" title="语言 / Language"></button>
+  <!-- 窗口没有系统标题栏，这三个键就是窗口的最小化 / 最大化 / 关闭 -->
+  <div class="wincap" id="wincap" hidden>
+    <button id="capMin" title="最小化" data-en-title="Minimize"><svg viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" stroke-width="1" fill="none"/></svg></button>
+    <button id="capMax" title="最大化"></button>
+    <button id="capClose" class="close" title="关闭" data-en-title="Close"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" stroke-width="1" fill="none"/></svg></button>
+  </div>
+</header>
+
+<!-- 首页 -->
+<main class="page" id="home">
+  <section class="capture">
+    <div class="cap-head">
+      <div class="cap-title">
+        <h1 class="title" data-en="Save recent gameplay">保存最近的画面</h1>
+        <div class="rec" id="rec" hidden><span class="dot"></span><span id="recText"></span><button class="link" id="btnStop" data-en="Stop">停止</button></div>
+      </div>
+      <p class="caption" id="capSub"></p>
+    </div>
+    <div class="infobar" id="capInfo" hidden>
+      <span class="ico" id="capIco"></span>
+      <div class="msg" id="capMsg"></div>
+      <button class="btn" id="capAct"></button>
+      <button class="btn" id="capAct2" hidden></button>
+    </div>
+    <!-- 时长按钮由脚本填在「编辑」前面 -->
+    <div class="tiles" id="tiles"><button class="btn subtle tile-edit" id="btnSlots" title="编辑保存时长与快捷键" data-en-title="Edit save lengths and hotkeys"></button></div>
+  </section>
+
+  <section class="library">
+    <div class="lib-head">
+      <span class="strong" data-en="Clips">片段</span>
+      <span class="caption" id="libMeta"></span>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="libEmpty" hidden>
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="5" y="9" width="30" height="22" rx="3"/><path d="M17 15.5v9l7.5-4.5z"/></svg>
+      <span class="strong" data-en="No clips yet">暂无片段</span>
+      <p class="caption" id="libEmptyText" data-en="Saved clips appear here.">保存的片段将显示在此处。</p>
+    </div>
+  </section>
+</main>
+
+<!-- 片段页：播放，需要时再裁剪 -->
+<main class="page" id="clip" hidden>
+  <div class="clip-head">
+    <div class="meta">
+      <div class="subtitle" id="fileName"></div>
+      <div class="caption" id="fileInfo"></div>
+    </div>
+    <span class="spacer"></span>
+    <button class="btn" id="btnTrim"></button>
+    <button class="btn subtle" id="btnReveal"></button>
+    <button class="btn subtle danger" id="btnDelete"></button>
+  </div>
+
+  <div class="stage" id="stage">
+    <video id="v" preload="auto" playsinline></video>
+    <img id="still" alt="" hidden>
+    <div class="infobar warn" id="verr" hidden><span class="ico" id="verrIco"></span><div class="msg" data-en="This video can't be played here (unsupported codec). You can still scrub the timeline and export clips.">无法播放此视频（编码不受支持）。仍可拖动时间轴查看画面并导出片段。</div></div>
+  </div>
+
+  <div class="transport">
+    <button class="icon-btn" id="btnPlay" title="播放 / 暂停（空格）" data-en-title="Play / Pause (Space)"></button>
+    <div class="time num"><b id="curT">00:00</b> / <span id="durT">00:00</span></div>
+    <span class="spacer"></span>
+    <span class="caption" style="margin-right:4px" data-en="Zoom">缩放</span>
+    <button class="icon-btn" id="zoomOut" title="缩小时间轴（−）" data-en-title="Zoom out (−)"></button>
+    <button class="btn subtle num zoomfit" id="zoomFit" title="显示完整时间轴（0）" data-en-title="Fit the whole clip (0)">1×</button>
+    <button class="icon-btn" id="zoomIn" title="放大时间轴（+ 或鼠标滚轮）" data-en-title="Zoom in (+ or mouse wheel)"></button>
+    <span class="caption" style="margin:0 4px 0 12px" data-en="Speed">速度</span>
+    <div class="seg" id="speed"></div>
+    <button class="icon-btn" id="btnMute" title="静音" data-en-title="Mute"></button>
+    <input class="slider" id="vol" type="range" min="0" max="1" step="0.02" value="1" title="音量" data-en-title="Volume">
+  </div>
+
+  <div class="tlwrap" id="tlwrap">
+    <div class="ruler num" id="ruler"></div>
+    <div class="timeline" id="tl">
+      <div class="strip" id="strip"></div>
+      <div class="shade l" id="shL"></div>
+      <div class="shade r" id="shR"></div>
+      <div class="selbox" id="sel"><div class="handle hl" id="hL" title="拖动以设置起点" data-en-title="Drag to set the start"></div><div class="handle hr" id="hR" title="拖动以设置终点" data-en-title="Drag to set the end"></div></div>
+      <div class="playhead" id="ph"><div class="knob" title="拖动以调整播放位置" data-en-title="Drag to seek"></div></div>
+    </div>
+    <div class="tlscroll" id="tlScroll" title="拖动以平移时间轴" data-en-title="Drag to pan the timeline"><div class="thumb" id="tlThumb"></div></div>
+  </div>
+
+  <div class="trimbar" id="trimbar" hidden>
+    <div class="stat"><label data-en="Start">起点</label><b class="num" id="inT">00:00</b>
+      <button class="icon-btn" data-nudge="in,-1" title="起点前移 1 帧（按住 Shift：1 秒）" data-en-title="Move start back 1 frame (Shift: 1 s)">−</button><button class="icon-btn" data-nudge="in,1" title="起点后移 1 帧（按住 Shift：1 秒）" data-en-title="Move start forward 1 frame (Shift: 1 s)">+</button></div>
+    <div class="stat"><label data-en="End">终点</label><b class="num" id="outT">00:00</b>
+      <button class="icon-btn" data-nudge="out,-1" title="终点前移 1 帧（按住 Shift：1 秒）" data-en-title="Move end back 1 frame (Shift: 1 s)">−</button><button class="icon-btn" data-nudge="out,1" title="终点后移 1 帧（按住 Shift：1 秒）" data-en-title="Move end forward 1 frame (Shift: 1 s)">+</button></div>
+    <div class="stat"><label data-en="Length">时长</label><b class="num" id="lenT" style="min-width:0"></b><span class="caption" id="sizeT" style="margin-left:8px"></span></div>
+    <span class="spacer"></span>
+    <label class="checkbox" title="导出成功后将原视频移至回收站" data-en-title="Move the original video to the Recycle Bin after a successful export"><input type="checkbox" id="delSrc"><span data-en="Delete original after export">导出后删除原视频</span></label>
+    <button class="btn" id="btnPreview" title="仅播放所选范围" data-en-title="Play only the selected range" data-en="Preview">预览</button>
+    <button class="btn accent" id="btnExport" style="min-width:104px"></button>
+  </div>
+</main>
+
+<!-- 语言 -->
+<div class="menu" id="langMenu" hidden>
+  <button type="button" data-lang="zh">中文</button>
+  <button type="button" data-lang="en">English</button>
+</div>
+
+<!-- 录制设置 -->
+<div class="smoke" id="setup" hidden>
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="suTitle">
+    <div class="dialog-body">
+      <div class="subtitle" id="suTitle" data-en="Recording settings">录制设置</div>
+      <p class="caption" data-en="Replay Clipper records the selected display in the background and keeps the most recent footage, ready to save at any time.">Replay Clipper 在后台持续录制所选显示器，并保留最近的一段画面，可随时保存。</p>
+
+      <div class="settings">
+        <div class="scard">
+          <div class="top"><div class="lbl"><div data-en="Display to record">录制的显示器</div><div class="caption" id="suMonHint"></div></div><button class="btn" id="suIdentify" title="在每台显示器上显示对应的编号" data-en-title="Show each display's number on screen" data-en="Identify" hidden>识别</button></div>
+          <div class="monmap" id="suMonitors" hidden></div>
+          <div class="note num" id="suMonNote"></div>
+        </div>
+        <div class="scard">
+          <div class="top"><div class="lbl"><div data-en="Resolution">分辨率</div><div class="caption" data-en="Higher resolution means larger files and more disk use">分辨率越高，文件越大，占用的磁盘空间越多</div></div><div class="seg" id="suCap"></div></div>
+          <div class="top"><div class="lbl"><div data-en="Frame rate">帧率</div></div><div class="seg" id="suFps"></div></div>
+        </div>
+        <div class="scard">
+          <div class="top"><div class="lbl"><div data-en="Replay length">回放时长</div><div class="caption" data-en="How far back you can save">最多可以保存多久以前的画面</div></div><div class="seg" id="suLength"></div></div>
+          <div class="row" id="suCustomRow" hidden><input class="textbox num mins" id="suCustom" inputmode="numeric" maxlength="3" aria-label="分钟"><span data-en="min">分钟</span><span class="caption" data-en="1 to 720 (12 h)">1 至 720（12 小时）</span></div>
+          <div class="note num" id="suDisk"></div>
+        </div>
+        <div class="scard">
+          <div class="top"><div class="lbl"><div data-en="Save lengths and hotkeys">保存时长与快捷键</div><div class="caption" data-en="The save buttons on the home page and their global hotkeys">首页上的保存按钮，以及对应的全局快捷键</div></div><button class="btn" id="suSlots" data-en="Edit…">编辑…</button></div>
+        </div>
+        <div class="scard">
+          <div class="top"><div class="lbl"><div data-en="Encoder">编码器</div><div class="caption" data-en="GPU encoding has the least impact on game performance">显卡编码对游戏帧率的影响最小</div></div><select class="combo" id="suEncoder" style="width:280px"></select></div>
+          <div class="note bad" id="suEncNote" hidden></div>
+        </div>
+        <div class="scard">
+          <div class="top"><div class="lbl"><div data-en="Save location">保存位置</div></div></div>
+          <div class="row"><input class="textbox" id="suFolder" spellcheck="false" placeholder="片段保存文件夹" data-en-ph="Folder for saved clips"><button class="btn" id="suFolderBrowse" data-en="Browse…">浏览…</button></div>
+          <div class="note bad" id="suFolderNote" hidden></div>
+        </div>
+        <div class="scard">
+          <div class="top"><div class="lbl"><div data-en="Buffer location">缓存位置</div><div class="caption" data-en="The rolling recording that saved clips are cut from">保存片段时从中截取的循环录制</div></div><button class="btn subtle" id="suBufferReset" data-en="Use default" hidden>恢复默认</button></div>
+          <div class="row"><input class="textbox" id="suBuffer" spellcheck="false" placeholder="缓存所在的文件夹" data-en-ph="Folder for the buffer"><button class="btn" id="suBufferBrowse" data-en="Browse…">浏览…</button></div>
+          <div class="note" id="suBufferNote"></div>
+        </div>
+        <div class="scard">
+          <div class="top"><div class="lbl"><div data-en="Record microphone">录制麦克风</div><div class="caption" data-en="When off, only system audio is recorded">关闭时仅录制系统声音</div></div><label class="toggle"><input type="checkbox" id="suMic"></label></div>
+        </div>
+        <div class="scard">
+          <div class="top"><div class="lbl"><div data-en="Start with Windows and record in the background">开机时启动并在后台录制</div><div class="caption" data-en="Starts in the notification area without opening a window">启动后只在通知区域显示图标，不打开窗口</div></div><label class="toggle"><input type="checkbox" id="suAutostart"></label></div>
+        </div>
+        <div class="scard">
+          <div class="top"><div class="lbl"><div data-en="When closing the window">关闭窗口时</div></div><div class="seg" id="suClose"></div></div>
+        </div>
+      </div>
+      <div id="suWarns"></div>
+      <div class="note" id="suRestart" style="margin-top:12px" hidden></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn accent" id="suApply"></button>
+      <button class="btn" id="suCancel" data-en="Cancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 时长与快捷键（写在录制设置后面：从录制设置里打开时，它叠在上面） -->
+<div class="smoke" id="slots" hidden>
+  <div class="dialog slots" id="slDialog" role="dialog" aria-modal="true" aria-labelledby="slTitle" tabindex="-1">
+    <div class="dialog-body">
+      <div class="subtitle" id="slTitle" data-en="Lengths and hotkeys">时长与快捷键</div>
+      <p class="caption" data-en="The save lengths on the home page and their global hotkeys.">首页上的保存时长，以及对应的全局快捷键。</p>
+      <div class="slot-head caption"><span data-en="Length">时长</span><span data-en="Hotkey">快捷键</span></div>
+      <div class="slot-list" id="slList"></div>
+      <div class="slot-add"><button class="btn" id="slAdd"></button><span class="caption" id="slAddNote" data-en="Up to 5" hidden>最多 5 个</span></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn subtle" id="slReset" data-en="Restore defaults">恢复默认设置</button>
+      <span class="spacer"></span>
+      <button class="btn accent" id="slSave" data-en="Save">保存</button>
+      <button class="btn" id="slCancel" data-en="Cancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<div class="smoke" id="overlay" hidden>
+  <div class="dialog">
+    <div class="dialog-body">
+      <div class="subtitle" id="dlgTitle"></div>
+      <p id="dlgText"></p>
+    </div>
+    <div class="dialog-foot"><button class="btn accent" id="dlgOk"></button><button class="btn" id="dlgCancel" data-en="Cancel">取消</button></div>
+  </div>
+</div>
+
+<!-- 关闭窗口 -->
+<div class="smoke" id="closeDlg" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="clTitle">
+    <div class="dialog-body">
+      <div class="subtitle" id="clTitle" data-en="Close window">关闭窗口</div>
+      <div role="radiogroup" aria-labelledby="clTitle">
+        <label class="choice"><input type="radio" name="clAction" value="tray" checked><span><span data-en="Keep running in the background">在后台继续运行</span><span class="caption" data-en="Recording and hotkeys keep working. The icon stays in the taskbar's notification area.">录制和快捷键照常可用，图标留在任务栏的通知区域。</span></span></label>
+        <label class="choice"><input type="radio" name="clAction" value="exit"><span><span data-en="Exit Replay Clipper">退出 Replay Clipper</span><span class="caption" data-en="Recording stops, unsaved footage is discarded, and hotkeys no longer work.">录制将停止并丢弃未保存的画面，快捷键不再可用。</span></span></label>
+      </div>
+      <label class="checkbox" style="margin-top:8px"><input type="checkbox" id="clRemember"><span data-en="Don't ask again">不再提醒</span></label>
+    </div>
+    <div class="dialog-foot"><button class="btn accent" id="clOk" data-en="OK">确定</button><button class="btn" id="clCancel" data-en="Cancel">取消</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+const K = new URLSearchParams(location.search).get('k') || '';
+const $ = id => document.getElementById(id);
+const v = $('v');
+const tl = $('tl');
+const MIN_LEN = 1;                   // 片段最短 1 秒
+const MIN_SPAN = 2;                  // 时间轴放到最大时，一屏显示 2 秒
+const MAP_W = 500, MAP_H = 190;      // 显示器排布图最多占多大（像素）
+
+// ------------------------------------------------------------ 语言
+// 后台按设置把 <html lang> 写成 zh-CN 或 en。页面里写死的文字是中文，同时带着 data-en（文字）、
+// data-en-title（悬停提示）、data-en-ph（输入框提示）；显示英文时在这里换掉。脚本里的文字用 tr(中文, 英文)。
+const EN = (document.documentElement.lang || '').toLowerCase().startsWith('en');
+const LANG = EN ? 'en' : 'zh';
+const tr = (zh, en) => (EN ? en : zh);
+if (EN) {
+  for (const el of document.querySelectorAll('[data-en]')) el.textContent = el.dataset.en;
+  for (const el of document.querySelectorAll('[data-en-title]')) el.title = el.dataset.enTitle;
+  for (const el of document.querySelectorAll('[data-en-ph]')) el.placeholder = el.dataset.enPh;
+}
+
+// 线性图标，20px 网格、1.5px 描边
+const svg = (d, extra) => '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"' + (extra || '') + '>' + d + '</svg>';
+const ICON = {
+  back: svg('<path d="M16 10H4.5M9 5l-5 5 5 5"/>'),
+  play: svg('<path d="M6.5 4v12l9.5-6z" fill="currentColor"/>'),
+  pause: svg('<path d="M6.5 4.5v11M13.5 4.5v11" stroke-width="2.4"/>'),
+  vol: svg('<path d="M3 8v4h2.6L9.5 15.5v-11L5.6 8z"/><path d="M12.5 7.5a3.6 3.6 0 010 5M14.6 5.4a6.5 6.5 0 010 9.2"/>'),
+  mute: svg('<path d="M3 8v4h2.6L9.5 15.5v-11L5.6 8z"/><path d="M12.8 7.8l4.2 4.4M17 7.8l-4.2 4.4"/>'),
+  folder: svg('<path d="M2.5 6c0-.8.7-1.5 1.5-1.5h3.2l1.8 2H16c.8 0 1.5.7 1.5 1.5v6c0 .8-.7 1.5-1.5 1.5H4c-.8 0-1.5-.7-1.5-1.5z"/>'),
+  settings: svg('<path d="M3 6h7M14 6h3M3 14h3M10 14h7"/><circle cx="12" cy="6" r="2"/><circle cx="8" cy="14" r="2"/>'),
+  trash: svg('<path d="M3.5 5.5h13M8 5.5V4h4v1.5M5 5.5l.7 10c0 .8.7 1.5 1.5 1.5h5.6c.8 0 1.5-.7 1.5-1.5l.7-10M8.4 8.5v5.5M11.6 8.5v5.5"/>'),
+  cut: svg('<circle cx="5.5" cy="14.5" r="2.3"/><circle cx="14.5" cy="14.5" r="2.3"/><path d="M7 12.7L14.5 3M13 12.7L5.5 3"/>'),
+  edit: svg('<path d="M4 16l.8-3.4L13.6 3.8a1.6 1.6 0 012.3 0l.3.3a1.6 1.6 0 010 2.3L7.4 15.2z"/>'),
+  add: svg('<path d="M10 4v12M4 10h12"/>'),
+  info: svg('<circle cx="10" cy="10" r="7.5"/><path d="M10 9v5"/><circle cx="10" cy="6.4" r=".6" fill="currentColor"/>'),
+  warn: svg('<path d="M10 2.8L18 16.5H2z"/><path d="M10 8v4.2"/><circle cx="10" cy="14.3" r=".6" fill="currentColor"/>'),
+  ok: svg('<circle cx="10" cy="10" r="7.5"/><path d="M6.5 10.3l2.4 2.4 4.6-5"/>'),
+  close: svg('<path d="M5 5l10 10M15 5L5 15"/>', ' style="width:16px;height:16px"'),
+  globe: svg('<circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3c2.4 2 2.4 12 0 14M10 3c-2.4 2-2.4 12 0 14"/>'),
+  zoomIn: svg('<circle cx="8.5" cy="8.5" r="5"/><path d="M12.2 12.2l4.3 4.3M6.5 8.5h4M8.5 6.5v4"/>'),
+  zoomOut: svg('<circle cx="8.5" cy="8.5" r="5"/><path d="M12.2 12.2l4.3 4.3M6.5 8.5h4"/>'),
+};
+
+const S = {
+  connected: false, loaded: false, files: [], filesSig: '', rec: {}, folder: '', ffmpegOk: true, totalSize: 0, free: -1,
+  uiSeen: 0, promptedSetup: false,  // 托盘菜单请页面做的事处理到第几个了；第一次运行时自动打开过录制设置了
+  slots: [],                       // 保存时长和各自的快捷键，按时长从短到长
+  remoteSaving: null, saveSeen: -1, // 不是从本页面发起的保存（快捷键、托盘菜单）：正在存哪一档；已经处理到第几次
+  cur: null, dur: 0, selIn: 0, selOut: 0, t: 0, trim: false,
+  vs: 0, ve: 0,                    // 时间轴当前显示的时间范围；没放大时就是 0 到整段的长度
+  stripVs: 0, stripVe: 0,          // 现有的缩略图条是为哪一段时间生成的
+  drag: null, dragOff: 0, dragX: 0, resumePlay: false, pendingSeek: null, previewing: false, noVideo: false,
+  savingSec: null, savePct: null, exporting: false, acting: false, launching: 0, stripN: 0, capSig: '', newNames: new Set(), speed: 1, monSig: '',
+};
+
+// ------------------------------------------------------------ 小工具
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const k in (attrs || {})) {
+    if (k === 'class') el.className = attrs[k];
+    else if (k === 'html') el.innerHTML = attrs[k];
+    else el.setAttribute(k, attrs[k]);
+  }
+  for (const kid of kids) if (kid != null) el.append(kid);
+  return el;
+}
+const pad = n => String(n).padStart(2, '0');
+function fmt(t) {
+  t = Math.max(0, Math.floor(t + 1e-6));
+  const hh = Math.floor(t / 3600), mm = Math.floor(t % 3600 / 60), ss = t % 60;
+  return (hh ? hh + ':' : '') + pad(mm) + ':' + pad(ss);
+}
+// 精确到百分之一秒，位数固定："01:23.40"（时间轴放大或裁剪时显示播放位置用）
+function fmtFine(t) {
+  const c = Math.round(Math.max(0, t) * 100);
+  return fmt(Math.floor(c / 100)) + '.' + pad(c % 100);
+}
+// 起点 / 终点用：整秒不带小数，否则带一到两位
+function fmtSel(t) {
+  const c = Math.round(Math.max(0, t) * 100);
+  const frac = c % 100;
+  return fmt(Math.floor(c / 100)) + (frac ? '.' + (frac % 10 ? pad(frac) : frac / 10) : '');
+}
+// 一段时长的说法：180 -> "3 分钟"，90 -> "1 分 30 秒"，45 -> "45 秒"；
+// 整小时说小时（7200 -> "2 小时"），不是整小时的仍按分钟说（5400 -> "90 分钟"）
+function fmtSpan(t) {
+  t = Math.max(0, Math.round(t));
+  if (t >= 3600 && t % 3600 === 0) return t / 3600 + tr(' 小时', ' h');
+  const mm = Math.floor(t / 60), ss = t % 60;
+  if (EN) return mm ? mm + ' min' + (ss ? ' ' + ss + ' s' : '') : ss + ' s';
+  if (!mm) return ss + ' 秒';
+  return mm + ' 分' + (ss ? ' ' + ss + ' 秒' : '钟');
+}
+// 同上，但不是整秒时保留小数："12.35 秒"
+function fmtLen(t) {
+  const c = Math.round(Math.max(0, t) * 100);
+  if (c % 100 === 0) return fmtSpan(c / 100);
+  const mm = Math.floor(c / 6000), ss = String(+((c - mm * 6000) / 100).toFixed(2));
+  return EN ? (mm ? mm + ' min ' : '') + ss + ' s' : (mm ? mm + ' 分 ' : '') + ss + ' 秒';
+}
+function fmtSize(b) {
+  if (b >= 1073741824) return (b / 1073741824).toFixed(b >= 10737418240 ? 1 : 2) + ' GB';
+  if (b >= 1048576) return Math.round(b / 1048576) + ' MB';
+  return Math.max(1, Math.round(b / 1024)) + ' KB';
+}
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const url = (path, params) => path + '?' + new URLSearchParams(Object.assign({}, params, { k: K }));
+
+async function api(path, body) {
+  const opt = body === undefined
+    ? { headers: { 'X-Token': K } }
+    : { method: 'POST', headers: { 'X-Token': K, 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  let r;
+  try { r = await fetch(path, opt); }
+  catch (e) { throw new Error(tr('无法连接到程序，可能已退出。', "Can't reach the app. It may have exited.")); }
+  let j = null;
+  try { j = await r.json(); } catch (e) { /* 不是 JSON */ }
+  if (!r.ok || !j || j.ok === false) {
+    const err = new Error((j && j.error) || tr('请求失败（' + r.status + '）', 'Request failed (' + r.status + ')'));
+    err.data = j;                            // 有的错误带着逐项说明（errors），见「时长与快捷键」
+    throw err;
+  }
+  return j;
+}
+
+// 顶部的通知条。opt: { kind: 'success' | 'error' | 'info', actions: [{ label, run }] }
+function notify(msg, opt) {
+  opt = opt || {};
+  const kind = opt.kind || 'info';
+  const el = h('div', { class: 'infobar ' + (kind === 'info' ? '' : kind) },
+    h('span', { class: 'ico', html: kind === 'success' ? ICON.ok : kind === 'error' ? ICON.warn : ICON.info }),
+    h('div', { class: 'msg' }, msg));
+  const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 200); };
+  for (const a of opt.actions || []) {
+    const b = h('button', { class: 'link' }, a.label);
+    b.onclick = () => { close(); a.run(); };
+    el.querySelector('.msg').append(b);
+  }
+  const x = h('button', { class: 'icon-btn', title: tr('关闭', 'Dismiss'), html: ICON.close });
+  x.onclick = close;
+  el.append(x);
+  $('toasts').append(el);
+  setTimeout(close, kind === 'error' ? 10000 : 7000);
+}
+const fail = e => notify(e.message, { kind: 'error' });
+
+let dlgResolve = null;
+function confirmDlg(title, text, okLabel) {
+  $('dlgTitle').textContent = title;
+  $('dlgText').textContent = text;
+  $('dlgOk').textContent = okLabel || tr('确定', 'OK');
+  $('overlay').hidden = false;
+  return new Promise(res => { dlgResolve = res; });
+}
+function closeDlg(val) {
+  $('overlay').hidden = true;
+  if (dlgResolve) { dlgResolve(val); dlgResolve = null; }
+}
+$('dlgOk').onclick = () => closeDlg(true);
+$('dlgCancel').onclick = () => closeDlg(false);
+
+// 文件名 -> 好读的标题和来历
+//   "Replay 2026-11-18 15-30-00 (3min).mp4"            最近 3 分钟（还有 (90s)、(2h) 这样的）
+//   "Replay 2026-11-18 15-30-00 (10m00s-25m00s).mp4"   从另一个片段里裁出来的
+//   "Replay 2026-11-18 15-30-00.mp4"                   完整回放
+function parseName(name) {
+  const stem = name.replace(/\.[^.]+$/, '');
+  const m = /(\d{4})-(\d{2})-(\d{2})[ _](\d{2})-(\d{2})-(\d{2})/.exec(stem);
+  if (!m) return { title: stem, kind: tr('视频', 'Video') };
+  // 名字里可能有几对括号（从"最近 3 分钟"里又裁了一段），以最后一对为准
+  const tags = stem.match(/\(([^()]*)\)/g) || [];
+  const tag = tags.length ? tags[tags.length - 1].slice(1, -1) : '';
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((today - d) / 86400000);
+  const day = days === 0 ? tr('今天', 'Today') : days === 1 ? tr('昨天', 'Yesterday')
+    : EN ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : (+m[2]) + '月' + (+m[3]) + '日';
+  let kind = tr('完整回放', 'Full replay');
+  const range = /^(?:(\d+)h)?(\d+)m(\d+)s-(?:(\d+)h)?(\d+)m(\d+)s$/.exec(tag);
+  const span = /^(\d+)(h|min|s)$/.exec(tag);
+  if (range) kind = tr('裁剪 ', 'Trimmed ') + fmt((+range[1] || 0) * 3600 + range[2] * 60 + +range[3]) + '–' + fmt((+range[4] || 0) * 3600 + range[5] * 60 + +range[6]);
+  else if (span) kind = tr('最近 ', 'Last ') + fmtSpan(span[1] * (span[2] === 'h' ? 3600 : span[2] === 'min' ? 60 : 1));
+  else if (tag) kind = tag;
+  return { title: day + ' ' + m[4] + ':' + m[5] + ':' + m[6], kind };
+}
+const curFile = () => S.files.find(f => f.name === S.cur) || null;
+
+// ------------------------------------------------------------ 状态刷新
+let refreshAsked = 0, refreshGot = 0;
+async function refresh() {
+  const n = ++refreshAsked;
+  try {
+    const st = await api('/api/state');
+    if (n < refreshGot) return;      // 比它晚问的已经先到了（保存时问得勤）：这份旧的不要
+    refreshGot = n;
+    applyState(st);
+  } catch (e) {
+    S.connected = false;
+    S.loaded = true;
+    renderCapture();
+  }
+}
+
+function applyState(st) {
+  S.connected = true;
+  S.loaded = true;
+  S.folder = st.folder; S.rec = st.rec || {}; S.ffmpegOk = st.ffmpeg;
+  S.totalSize = st.totalSize; S.free = st.free;
+  S.slots = st.slots && st.slots.length ? st.slots : DEFAULT_SLOTS;
+  S.remoteSaving = st.savingSeconds == null ? null : st.savingSeconds;
+  const marked = syncSaves(st);
+  const sig = JSON.stringify(st.files);
+  if (sig !== S.filesSig || marked) {
+    S.filesSig = sig;
+    S.files = st.files;
+    if (S.cur && !curFile()) goHome();
+    renderGrid();
+    renderFileInfo();
+    const f = curFile();
+    if (f && f.duration && !S.dur) setDuration(f.duration);
+  }
+  $('btnFolder').title = tr('打开 ', 'Open ') + S.folder;
+  renderCapture();
+  saveProgress(st.saveProgress);
+
+  // 录制设置开着的时候插拔了显示器或改了排布：重新读取，让示意图跟上
+  const monSig = S.rec.monitorSig || '';
+  if (S.monSig && monSig && monSig !== S.monSig && !$('setup').hidden && W.form && !W.busy && !W.loading) loadSetupInfo();
+  S.monSig = monSig;
+
+  // 第一次运行、还没设置过录制：自动打开一次录制设置（各项已填好默认值）。关掉的话首页留着提示条，以后不再自动打开
+  if (S.rec.state === 'unconfigured' && !S.rec.prompted && !S.promptedSetup && $('setup').hidden) {
+    S.promptedSetup = true;
+    api('/api/rec/prompted', {}).catch(() => {});
+    openSetup().catch(fail);
+  }
+
+  // 托盘菜单里点了要在窗口里接着做的事（停止录制前先问一句、打开录制设置）
+  const ui = st.ui || {};
+  if (ui.id > S.uiSeen) {
+    S.uiSeen = ui.id;
+    if (st.now - ui.at < 15000) {
+      if (ui.command === 'stop') stopRec();
+      else if (ui.command === 'settings') openSetup().catch(fail);
+    }
+  }
+}
+
+// ------------------------------------------------------------ 首页：保存最近的画面
+const MAX_SLOTS = 5, MIN_SLOT = 15, MAX_SLOT = 43200;     // 最多几个时长；每个最短、最长多少秒（最长不超过回放时长）
+const DEFAULT_SLOTS = [{ seconds: 180, hotkey: 'Alt+F7' }, { seconds: 300, hotkey: 'Alt+F8' }, { seconds: 900, hotkey: 'Alt+F9' }, { seconds: 1800, hotkey: 'Alt+F10' }];
+const bufferSeconds = () => S.rec.seconds || 1800;      // 回放时长：缓存里保留最近多久的画面
+// 正在保存的是哪一档（秒）；没在保存时为 null。可能是本页面发起的，也可能是快捷键或托盘菜单发起的
+const savingNow = () => (S.savingSec !== null ? S.savingSec : S.remoteSaving);
+
+// 首页上的时长按钮：一个时长一个，点按钮和按它的快捷键是同一回事。
+// 比回放时长还长的时长保存的都是"全部"，显示成回放时长，有几个也只占一个按钮。
+function tileDefs() {
+  const rb = bufferSeconds();
+  const out = [];
+  for (const s of (S.slots.length ? S.slots : DEFAULT_SLOTS)) {
+    const sec = Math.min(s.seconds, rb);
+    const same = out.find(t => t.seconds === sec);
+    if (same) { same.members.push(s.seconds); continue; }
+    out.push({ seconds: sec, slot: s.seconds, members: [s.seconds], hotkey: s.hotkey || '', inUse: !!s.inUse });
+  }
+  return out;
+}
+
+// 现在该让用户做什么：能直接保存，还是先要设置、开始录制，或者出了什么问题。
+// text 是提示条的标题，detail 是说明，action / run 是主按钮，action2 / run2 是第二个按钮（有的话）。
+function capState() {
+  const r = S.rec || {};
+  const SETTINGS = tr('录制设置', 'Recording settings');
+  if (!S.loaded) return { kind: 'loading' };      // 刚打开、还没读到状态：先什么提示都不显示
+  if (!S.connected)
+    return { kind: 'error', text: tr('与程序的连接已断开', 'Connection to the app was lost'), detail: tr('请关闭窗口后重新打开。', 'Close this window and open it again.') };
+
+  // 设置里选的那台显示器现在没有接着（拔掉了、换了接口）：这时录不到画面
+  const monGone = {
+    kind: 'warn', text: tr('所选显示器未连接', "The selected display isn't connected"),
+    detail: tr('当前无法录到画面。请在录制设置中选择正在使用的显示器。', "Nothing can be captured right now. Choose a display that's in use in Recording settings."),
+    action: SETTINGS, run: openSetup, accent: true,
+  };
+  switch (r.state) {
+    case 'recording':      // 已经录下来的画面照样可以保存，显示器不在了只是提醒一下
+      return { kind: 'ready', notice: r.monitorMissing ? monGone : null };
+    case 'starting':
+      return { kind: 'info', text: tr('正在启动录制…', 'Starting recording…'), busy: true };
+    case 'restoring':
+      return { kind: 'warn', text: tr('录制已中断', 'Recording was interrupted'), detail: tr('正在自动恢复。', 'Restoring it automatically.'), busy: true };
+    case 'nomonitor':
+      return monGone;
+    case 'nodisk':
+      return { kind: 'warn', text: tr('磁盘空间不足', 'Not enough disk space'), detail: r.errorText || '',
+        action: SETTINGS, run: openSetup, accent: true, action2: tr('重试', 'Retry'), run2: startRec };
+    case 'error':
+      return { kind: 'error', text: tr('录制未能启动', "Recording couldn't start"), detail: r.errorText || '',
+        action: tr('重试', 'Retry'), run: startRec, accent: true, action2: SETTINGS, run2: openSetup };
+    case 'off':
+      return { kind: 'info', text: tr('后台录制未开启', 'Background recording is off'),
+        detail: tr('开启后，将持续保留最近 ' + fmtSpan(bufferSeconds()) + '的画面。', 'When on, the last ' + fmtSpan(bufferSeconds()) + ' is kept at all times.'),
+        action: tr('开始录制', 'Start recording'), run: startRec, accent: true };
+    default:               // 还没设置过
+      return { kind: 'info', text: tr('尚未设置录制', "Recording isn't set up yet"),
+        detail: tr('选择要录制的显示器和分辨率后，即可开始后台录制。', 'Choose the display and resolution to start background recording.'),
+        action: SETTINGS, run: openSetup, accent: true };
+  }
+}
+
+function renderCapture() {
+  const st = capState(), tiles = tileDefs(), ready = st.kind === 'ready';
+  const bar = ready ? (st.notice || null) : st.kind === 'loading' ? null : st;      // 提示条里显示什么（没有则不显示）
+  const sig = JSON.stringify([st.kind, bar && bar.text, bar && bar.detail, bar && bar.action, bar && bar.busy, tiles, savingNow(), S.acting, bufferSeconds()]);
+  if (sig === S.capSig) return;
+  S.capSig = sig;
+
+  $('capSub').textContent = ready
+    ? tr('选择时长即可保存为片段。游戏中可直接使用快捷键。', 'Choose a length to save a clip. In a game, use the hotkeys.')
+    : tr('在后台持续录制屏幕，可随时保存最近的画面。', 'Records your screen in the background so you can save the last few minutes at any time.');
+  $('rec').hidden = !ready;
+  $('recText').textContent = tr('后台录制中 · 保留最近 ', 'Recording in background · keeping the last ') + fmtSpan(bufferSeconds());
+
+  const info = $('capInfo');
+  info.hidden = !bar;
+  if (bar) {
+    info.className = 'infobar ' + (bar.kind === 'info' ? '' : bar.kind);
+    $('capIco').innerHTML = bar.busy ? '<span class="ring"></span>' : bar.kind === 'info' ? ICON.info : ICON.warn;
+    const msg = $('capMsg');
+    msg.textContent = '';
+    msg.append(h('b', null, bar.text), bar.detail || '');
+    // 一个或两个按钮：第一个是主要的那件事
+    const button = (el, label, run, accent) => {
+      el.hidden = !label;
+      el.className = 'btn' + (accent ? ' accent' : '');
+      el.disabled = S.acting;
+      el.textContent = '';
+      if (S.acting === el.id) el.append(h('span', { class: 'ring' }));
+      el.append(label || '');
+      el.onclick = async () => {
+        if (S.acting) return;
+        S.acting = el.id; renderCapture();
+        try { await run(); } catch (e) { fail(e); } finally { S.acting = false; renderCapture(); }
+      };
+    };
+    button($('capAct'), bar.action, bar.run, bar.accent);
+    button($('capAct2'), bar.action2, bar.run2, false);
+  }
+
+  // 时长按钮重新排一遍，都放在「编辑」前面（「编辑」一直在，不重建，焦点也就不会丢）
+  const box = $('tiles'), edit = $('btnSlots');
+  for (const old of box.querySelectorAll('.tile')) old.remove();
+  const saving = savingNow(), busy = saving !== null;
+  // 大号数字加小号单位："3 分钟"、"2 小时"、"45 秒"；带零头的写成 "1:30"
+  const big = (sec, mine) => {
+    if (mine) return h('div', { class: 'big plain' }, h('span', { class: 'ring' }), h('span', { class: 'what' }, tr('正在保存', 'Saving')));
+    let n, u;
+    if (sec >= 3600 && sec % 3600 === 0) { n = String(sec / 3600); u = tr('小时', 'h'); }
+    else if (sec % 60 === 0) { n = String(sec / 60); u = tr('分钟', 'min'); }
+    else if (sec < 60) { n = String(sec); u = tr('秒', 's'); }
+    else { n = Math.floor(sec / 60) + ':' + pad(sec % 60); u = ''; }
+    return h('div', { class: 'big' }, h('span', { class: 'n' }, n), u ? h('span', { class: 'u' }, u) : null);
+  };
+  const saveTip = (sec, hotkey) => tr('保存最近 ', 'Save the last ') + fmtSpan(sec) + (hotkey ? tr('（' + hotkey + '）', ' (' + hotkey + ')') : '');
+  for (const tile of tiles) {
+    const mine = busy && tile.members.includes(saving);
+    // 第二行：快捷键；没设的话淡淡地说一声；设了但被别的程序占着、按了不起作用的，标出来
+    const sub = !tile.hotkey ? h('div', { class: 'sub none' }, tr('未设置快捷键', 'No hotkey'))
+      : tile.inUse ? h('div', { class: 'sub bad' }, tr('快捷键不可用', 'Hotkey unavailable'))
+      : h('div', { class: 'sub' }, tile.hotkey);
+    const b = h('button', { class: 'tile' + (mine ? ' busy' : ''), type: 'button' }, big(tile.seconds, mine), sub);
+    b.disabled = !ready || busy;
+    b.title = saveTip(tile.seconds, tile.inUse ? '' : tile.hotkey)
+      + (tile.inUse ? tr('。' + tile.hotkey + ' 已被其他程序占用', '. ' + tile.hotkey + ' is in use by another program') : '');
+    b.onclick = () => saveRecent(tile.slot, tile.seconds);
+    if (mine) b.append(h('span', { class: 'prog', hidden: '' }, h('i')));
+    box.insertBefore(b, edit);
+  }
+  if (!busy) S.savePct = null;
+  paintSaveProgress();
+}
+
+// 存得久的时候显示进度。p：这一次保存进行到哪了（0 到 1），后台在存了一秒以上以后才给——很快存完的看不到百分比，和以前一样。
+// 程序自己的窗口里是后台递过来的，用浏览器窗口显示时是问状态问到的；只增不减，到 99% 为止（剩下的是收尾）。
+function saveProgress(p) {
+  if (savingNow() === null || typeof p !== 'number' || !(p >= 0)) return;
+  const pct = Math.min(99, Math.floor(p * 100));
+  if (S.savePct !== null && pct <= S.savePct) return;
+  S.savePct = pct;
+  paintSaveProgress();
+}
+function paintSaveProgress() {
+  const tile = document.querySelector('#tiles .tile.busy');
+  if (!tile || S.savePct === null) return;
+  tile.classList.add('pct');
+  tile.querySelector('.ring').hidden = true;
+  tile.querySelector('.what').textContent = tr('正在保存… ', 'Saving… ') + S.savePct + '%';
+  const bar = tile.querySelector('.prog');
+  bar.hidden = false;
+  bar.firstChild.style.width = S.savePct + '%';
+}
+
+// 保存好以后的提示。shown：按钮上写的时长。存下的和它差不到两秒就按它说；明显短的照实说，并说明缓存里还没攒够这么长
+function savedNotice(r, shown) {
+  if (r.warn) notify(r.warn, { kind: 'error' });
+  let got = r.duration || 0;
+  const short = shown && got < shown - 2;
+  if (shown && Math.abs(got - shown) <= 2) got = shown;
+  notify(tr('已保存最近 ' + fmtSpan(got) + (short ? '（回放缓存中仅有这些）' : '') + '。',
+            'Saved the last ' + fmtSpan(got) + (short ? " (all that's in the replay buffer)" : '') + '.'), {
+    kind: 'success',
+    actions: [{ label: tr('查看', 'View'), run: () => openFile(r.name) }, { label: tr('裁剪', 'Trim'), run: () => openFile(r.name, true) }],
+  });
+}
+
+// seconds：这一档设的时长；shown：按钮上写的时长（回放时长比它短时，写的是回放时长）
+async function saveRecent(seconds, shown) {
+  if (savingNow() !== null) return;
+  S.savingSec = seconds;
+  renderCapture();
+  try {
+    const r = await api('/api/save', { seconds });
+    S.newNames.add(r.name);
+    await refresh();
+    savedNotice(r, shown);
+  } catch (e) {
+    fail(e);
+  } finally {
+    S.savingSec = null;
+    renderCapture();
+  }
+}
+
+// 按快捷键或从托盘菜单保存时，页面不是发起者：从状态里得知以后，补上和点按钮时一样的"新"标记和提示。
+// 返回是否有片段新标上了"新"。
+function syncSaves(st) {
+  const list = st.saves || [];
+  const first = S.saveSeen < 0;
+  const fresh = list.filter(x => x.id > S.saveSeen);
+  S.saveSeen = Math.max(0, S.saveSeen, ...list.map(x => x.id));
+  if (first) return false;                                // 页面刚打开：之前的不算
+  let marked = false;
+  for (const x of fresh) {
+    if (x.source === 'ui') continue;                      // 本页面发起的：结果已经在 saveRecent 里处理了
+    if (x.name && !S.newNames.has(x.name)) { S.newNames.add(x.name); marked = true; }
+    if (st.now - x.at > 15000) continue;                  // 窗口收在托盘里时存的：回来后只留"新"标记，不再弹提示
+    if (x.error) notify(x.error, { kind: 'error' });
+    else savedNotice(x, Math.min(x.seconds, bufferSeconds()));
+  }
+  return marked;
+}
+
+// ------------------------------------------------------------ 时长与快捷键
+// 首页时长按钮后面的「编辑」、录制设置里的「编辑…」打开的对话框：每行一个时长和它的快捷键，最多五行。
+// 改动都只在对话框里，点「保存」才生效。
+const E = { rows: [], rec: null, recErr: '', recMods: '', recTimer: 0, busy: false, byKey: false, chain: Promise.resolve(), opener: null, replay: 0 };
+
+// KeyboardEvent.code → 键名。按物理键位取，不受输入法和键盘布局影响；键名和后台（Background.cs 的键表）是同一套。
+const CODE_KEYS = {
+  Space: 'Space', Tab: 'Tab', Enter: 'Enter', NumpadEnter: 'Enter', Backspace: 'Backspace', Insert: 'Insert', Delete: 'Delete',
+  Home: 'Home', End: 'End', PageUp: 'PageUp', PageDown: 'PageDown', ArrowLeft: 'Left', ArrowUp: 'Up', ArrowRight: 'Right', ArrowDown: 'Down',
+  Pause: 'Pause', ScrollLock: 'ScrollLock', NumpadMultiply: 'Num*', NumpadAdd: 'Num+', NumpadSubtract: 'Num-', NumpadDecimal: 'Num.', NumpadDivide: 'Num/',
+  Backquote: '`', Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Backslash: '\\', Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/',
+};
+function keyName(code) {
+  let m;
+  if ((m = /^Key([A-Z])$/.exec(code))) return m[1];
+  if ((m = /^Digit(\d)$/.exec(code))) return m[1];
+  if ((m = /^Numpad(\d)$/.exec(code))) return 'Num' + m[1];
+  if ((m = /^F(\d\d?)$/.exec(code)) && +m[1] >= 1 && +m[1] <= 24) return code;
+  return CODE_KEYS[code] || '';
+}
+// 修饰键的写法，顺序固定：Ctrl、Alt、Shift
+const modText = k => (k.ctrl ? 'Ctrl+' : '') + (k.alt ? 'Alt+' : '') + (k.shift ? 'Shift+' : '');
+// 这个组合能不能当全局快捷键（规则和后台的 HotkeyProblem 一致）：功能键可以单独用，其他键必须带 Ctrl 或 Alt；系统自己在用的不行
+function hotkeyProblem(k) {
+  const plain = !k.ctrl && !k.alt && !k.shift;
+  if (!/^F\d+$/.test(k.key) && !k.ctrl && !k.alt) return 'modifier';
+  if (k.key === 'F12' && plain) return 'reserved';
+  if (k.key === 'F4' && k.alt && !k.ctrl && !k.shift) return 'reserved';
+  if (k.key === 'Tab' && k.alt) return 'reserved';
+  if (k.key === 'Space' && k.alt && !k.ctrl && !k.shift) return 'reserved';
+  if (k.key === 'Delete' && k.ctrl && k.alt && !k.shift) return 'reserved';
+  return '';
+}
+const maxSlot = () => Math.min(MAX_SLOT, E.replay || bufferSeconds());
+function slotMessage(code) {
+  switch (code) {
+    case 'range': return tr('请输入 ' + fmtSpan(MIN_SLOT) + '至 ' + fmtSpan(maxSlot()) + '之间的时长', 'Enter a length between ' + fmtSpan(MIN_SLOT) + ' and ' + fmtSpan(maxSlot()));
+    case 'dupLength': return tr('时长与其他项重复', 'Same length as another row');
+    case 'dupHotkey': return tr('快捷键与其他项重复', 'Same hotkey as another row');
+    case 'modifier': return tr('需包含 Ctrl 或 Alt', 'Include Ctrl or Alt');
+    case 'reserved': return tr('此组合键由系统保留', 'This combination is reserved by Windows');
+    case 'win': return tr('不支持 Win 键', "The Windows key can't be used");
+    case 'in_use': return tr('已被其他程序占用', 'Already in use by another program');
+    default: return tr('此组合键不可用', "This combination can't be used");
+  }
+}
+
+// orig：这一行原本的时长（刚添加的行没有）。回放时长后来改短了的话，原有的时长可以比它长——保存的就是全部。
+function slotRow(seconds, hotkey, orig, hkErr) {
+  return { min: String(Math.floor(seconds / 60)), sec: String(seconds % 60), hotkey: hotkey || '', orig, hkErr: hkErr || '', lenErr: '', checked: false, el: null };
+}
+const rowSeconds = r => (parseInt(r.min, 10) || 0) * 60 + (parseInt(r.sec, 10) || 0);
+
+// 每一行现在有什么问题。len / hk 是问题的代号，没有问题时为空
+function slotProblems() {
+  const max = maxSlot(), secs = E.rows.map(rowSeconds);
+  return E.rows.map((r, i) => {
+    const sec = secs[i];
+    const len = r.lenErr ? r.lenErr
+      : sec < MIN_SLOT || sec > MAX_SLOT || (sec > max && sec !== r.orig) ? 'range'
+      : secs.some((x, j) => j !== i && x === sec) ? 'dupLength' : '';
+    const hk = r.hkErr ? r.hkErr
+      : r.hotkey && E.rows.some((x, j) => j !== i && x.hotkey === r.hotkey) ? 'dupHotkey' : '';
+    return { len, hk, over: !len && sec > max };
+  });
+}
+
+// 把每一行的状态画出来：快捷键框里的文字、出错的标记和说明、各个按钮能不能点。不重建输入框，所以不影响正在输入
+function paintSlots() {
+  const probs = slotProblems();
+  E.rows.forEach((r, i) => {
+    const el = r.el, p = probs[i], rec = E.rec === r;
+    const lenBad = r.checked && !!p.len;
+    for (const inp of el.querySelectorAll('input')) inp.classList.toggle('bad', lenBad);
+    const hk = el.querySelector('.hk'), main = el.querySelector('.hk-main');
+    hk.classList.toggle('rec', rec);
+    hk.classList.toggle('bad', rec ? !!E.recErr : !!p.hk);
+    main.classList.toggle('unset', !rec && !r.hotkey);
+    main.textContent = rec ? (E.recMods ? E.recMods + '…' : tr('请按下快捷键…', 'Press a shortcut…')) : (r.hotkey || tr('未设置', 'None'));
+    el.querySelector('.hk-clear').hidden = rec || !r.hotkey;
+    el.querySelector('.del').disabled = E.rows.length <= 1;
+    const lines = [];
+    if (lenBad) lines.push(slotMessage(p.len));
+    if (rec ? E.recErr : p.hk) lines.push(slotMessage(rec ? E.recErr : p.hk));
+    const note = el.querySelector('.note');
+    note.className = 'note' + (lines.length ? ' bad' : '');
+    if (!lines.length && p.over) lines.push(tr('超过回放时长，将保存全部画面', 'Longer than the replay length. Saves everything.'));
+    note.hidden = !lines.length;
+    note.textContent = lines.join(tr('；', '; '));
+  });
+  const full = E.rows.length >= MAX_SLOTS;
+  $('slAdd').disabled = full;
+  $('slAddNote').hidden = !full;
+  $('slSave').disabled = E.busy;
+}
+
+function buildSlotRows() {
+  const list = $('slList');
+  list.textContent = '';
+  for (const r of E.rows) {
+    const field = (key, label) => {
+      const inp = h('input', { class: 'textbox num', inputmode: 'numeric', maxlength: key === 'min' ? '3' : '2', 'aria-label': label });
+      inp.value = r[key];
+      inp.addEventListener('input', () => {
+        inp.value = inp.value.replace(/\D/g, '');
+        r[key] = inp.value;
+        r.lenErr = '';
+        paintSlots();
+      });
+      inp.addEventListener('focus', () => inp.select());
+      inp.addEventListener('blur', () => {
+        // 写成"0 分 90 秒"的整理成"1 分 30 秒"；离开输入框后才开始提示这一行的问题，免得输到一半就报错
+        const total = rowSeconds(r);
+        if ((parseInt(r.sec, 10) || 0) > 59 || r.min === '' || r.sec === '') {
+          r.min = String(Math.floor(total / 60)); r.sec = String(total % 60);
+          const [a, b] = r.el.querySelectorAll('input');
+          a.value = r.min; b.value = r.sec;
+        }
+        r.checked = true;
+        paintSlots();
+      });
+      return inp;
+    };
+    const main = h('div', { class: 'hk-main', role: 'button', tabindex: '0', 'aria-label': tr('快捷键', 'Hotkey') });
+    main.addEventListener('click', () => startRecording(r));
+    main.addEventListener('keydown', e => onHotkeyFieldKey(r, e));
+    main.addEventListener('keyup', e => { if (E.rec === r) { E.recMods = modText({ ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey }); paintSlots(); } });
+    main.addEventListener('blur', () => { if (E.rec === r) stopRecording(); });
+    const clear = h('button', { class: 'icon-btn hk-clear', type: 'button', tabindex: '-1', title: tr('清除快捷键', 'Clear hotkey'), html: ICON.close });
+    clear.onclick = () => { setHotkey(r, ''); main.focus(); };
+    const del = h('button', { class: 'icon-btn del', type: 'button', title: tr('删除', 'Remove'), html: ICON.trash });
+    del.onclick = () => {
+      const i = E.rows.indexOf(r);
+      if (E.rec === r) stopRecording();
+      E.rows.splice(i, 1);
+      buildSlotRows();
+      const next = E.rows[Math.min(i, E.rows.length - 1)];
+      (E.rows.length > 1 ? next.el.querySelector('.del') : $('slAdd')).focus();
+    };
+    r.el = h('div', { class: 'slot-row' },
+      h('div', { class: 'len' }, field('min', tr('分钟', 'Minutes')), h('span', null, tr('分', 'min')), field('sec', tr('秒', 'Seconds')), h('span', null, tr('秒', 's'))),
+      h('div', { class: 'hk' }, main, clear),
+      del,
+      h('div', { class: 'note', role: 'alert' }));
+    list.append(r.el);
+  }
+  paintSlots();
+}
+
+function setHotkey(r, text) {
+  r.hotkey = text;
+  r.hkErr = '';
+  if (E.rec === r) stopRecording(); else paintSlots();
+}
+
+// 录入快捷键期间让后台暂停响应全局快捷键：这样按下一个已经在用的组合，是被录下来，而不是触发一次保存。
+// 请求一个接一个地发，免得"暂停"和"恢复"到达的先后颠倒；录入时间长了每十秒续一次（后台半分钟没收到就自己恢复）。
+function suspendHotkeys(on) {
+  E.chain = E.chain.then(() => api('/api/hotkeys/suspend', { on })).catch(() => {});
+}
+function startRecording(r) {
+  if (E.rec === r || E.busy) return;
+  stopRecording();
+  E.rec = r; E.recErr = ''; E.recMods = '';
+  r.el.querySelector('.hk-main').focus();    // 按键是这个输入框接的；失去焦点就结束录入
+  suspendHotkeys(true);
+  E.recTimer = setInterval(() => suspendHotkeys(true), 10000);
+  paintSlots();
+}
+function stopRecording() {
+  if (!E.rec) return;
+  E.rec = null; E.recErr = ''; E.recMods = '';
+  clearInterval(E.recTimer);
+  suspendHotkeys(false);
+  paintSlots();
+}
+
+function onHotkeyFieldKey(r, e) {
+  const bare = !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
+  if (E.rec !== r) {
+    // 没在录入：回车或空格开始录入，退格或删除键清除
+    if (bare && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); startRecording(r); }
+    else if (bare && (e.key === 'Backspace' || e.key === 'Delete') && r.hotkey) { e.preventDefault(); setHotkey(r, ''); }
+    return;
+  }
+  // 正在录入。单按 Tab 不当作快捷键：结束录入，让焦点照常移走
+  if (e.code === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey) { stopRecording(); return; }
+  e.preventDefault();
+  e.stopPropagation();                       // Esc 只取消录入，不关对话框
+  if (e.repeat) return;
+  if (e.code === 'Escape') { stopRecording(); return; }
+  const k = { ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey, key: '' };
+  if (/^(Control|Alt|Shift|Meta|OS)(Left|Right)$/.test(e.code)) {      // 只按下了修饰键：先显示出来，等后面的键
+    E.recMods = modText(k);
+    paintSlots();
+    return;
+  }
+  if (bare && (e.code === 'Backspace' || e.code === 'Delete')) { setHotkey(r, ''); return; }
+  k.key = keyName(e.code);
+  const problem = e.metaKey ? 'win' : !k.key ? 'invalid' : hotkeyProblem(k);
+  if (problem) { E.recErr = problem; E.recMods = ''; paintSlots(); return; }      // 不能用：说明原因，继续等下一次按键
+  setHotkey(r, modText(k) + k.key);
+}
+
+// opener：打开它的那个按钮，关掉以后键盘焦点回到那里。
+// 从录制设置里打开时它叠在录制设置上面，时长的上限按那里现在选的回放时长算（可能还没保存）；关掉后回到录制设置，那里改到一半的内容都还在。
+function openSlots(opener) {
+  const f = !$('setup').hidden && W.form;
+  E.opener = opener || null;
+  E.replay = f && !(f.custom && f.customBad) ? f.seconds : 0;
+  E.rows = (S.slots.length ? S.slots : DEFAULT_SLOTS).map(s => slotRow(s.seconds, s.hotkey, s.seconds, s.inUse ? 'in_use' : ''));
+  E.busy = false;
+  buildSlotRows();
+  $('slots').hidden = false;
+  v.pause();
+  $('slDialog').focus();                     // 焦点进到对话框里，按 Tab 从第一行开始
+}
+function closeSlots() {
+  if ($('slots').hidden) return;
+  stopRecording();
+  $('slots').hidden = true;
+  if (E.byKey && E.opener) E.opener.focus();      // 用键盘操作时，焦点回到打开它的按钮上
+}
+// 最近一次操作用的是键盘还是鼠标
+document.addEventListener('keydown', () => { E.byKey = true; }, true);
+document.addEventListener('pointerdown', () => { E.byKey = false; }, true);
+function addSlot() {
+  if (E.rows.length >= MAX_SLOTS) return;
+  // 先给一个还没用过的常用时长
+  const used = new Set(E.rows.map(rowSeconds)), max = maxSlot();
+  const seconds = [60, 120, 600, 1200, 3600, 7200, 30, 45, 90, 240, 420, 480].find(s => s <= max && !used.has(s)) || 60;
+  const r = slotRow(seconds, '', null, '');
+  E.rows.push(r);
+  buildSlotRows();
+  r.el.querySelector('input').focus();
+}
+async function saveSlots() {
+  if (E.busy) return;
+  stopRecording();
+  // 后台上一次指出的问题（比如快捷键被别的程序占着）不拦着再试：情况可能已经变了，交给后台重新判断
+  for (const r of E.rows) { r.checked = true; r.hkErr = ''; r.lenErr = ''; }
+  paintSlots();
+  const probs = slotProblems(), bad = probs.findIndex(p => p.len || p.hk);
+  if (bad >= 0) {
+    E.rows[bad].el.querySelector(probs[bad].len ? 'input' : '.hk-main').focus();
+    return;
+  }
+  E.busy = true;
+  paintSlots();
+  try {
+    await E.chain;                           // 等"恢复快捷键"的请求先到
+    const res = await api('/api/slots', { slots: E.rows.map(r => ({ seconds: rowSeconds(r), hotkey: r.hotkey })) });
+    S.slots = res.slots;
+    E.busy = false;
+    closeSlots();
+    renderCapture();
+  } catch (e) {
+    // 后台逐项指出的问题（主要是快捷键被别的程序占着）标到对应的行上；对话框留着，什么都没有保存
+    const list = (e.data && e.data.errors) || [];
+    for (const it of list) {
+      const r = E.rows[it.index];
+      if (!r) continue;
+      if (it.field === 'hotkey') r.hkErr = it.code === 'duplicate' ? 'dupHotkey' : it.code;
+      else r.lenErr = it.code === 'duplicate' ? 'dupLength' : 'range';
+    }
+    if (!list.length) fail(e);
+    E.busy = false;
+    paintSlots();
+    const first = E.rows.find(r => r.hkErr);
+    if (first) first.el.querySelector('.hk-main').focus();
+  }
+}
+$('slAdd').onclick = addSlot;
+$('slSave').onclick = saveSlots;
+$('slCancel').onclick = closeSlots;
+$('slReset').onclick = () => {
+  stopRecording();
+  E.rows = DEFAULT_SLOTS.map(s => slotRow(s.seconds, s.hotkey, s.seconds, ''));
+  buildSlotRows();
+  $('slSave').focus();
+};
+document.addEventListener('pointerdown', e => {
+  if (!$('langMenu').hidden && !e.target.closest('#langMenu') && !e.target.closest('#btnLang')) closeLang();
+});
+// 小菜单是按打开时的位置摆的：窗口大小一变就收起来，免得留在原处、甚至被挤到窗口外面
+window.addEventListener('resize', () => {
+  if (!$('langMenu').hidden) closeLang();
+});
+
+// ------------------------------------------------------------ 首页：片段库
+// 文件列表变了的时候只动变了的地方：没变的卡片原样留着（缩略图不重新加载，也就不会闪一下），
+// 新的片段插进来，删掉的拿走，卡片上会变的那几处（时长、"新"标记、说明文字）就地改。
+const cards = new Map();      // 文件名 -> 卡片
+
+function paintCard(el, f) {
+  const info = parseName(f.name), th = el.firstChild;
+  el.classList.toggle('busy', !!f.busy);
+
+  // 缩略图取片段正中的那一帧，所以要等读到时长以后才有；地址没变就不碰它
+  const src = !f.busy && f.duration ? url('/thumb', { f: f.name, t: (f.duration / 2).toFixed(1), h: 288, v: f.v }) : '';
+  if (el.dataset.thumb !== src) {
+    el.dataset.thumb = src;
+    const old = th.querySelector('img');
+    if (!src) {
+      if (old) old.remove();
+    } else {
+      const img = h('img', { alt: '', loading: 'lazy', draggable: 'false' });
+      img.onload = () => { if (old) old.remove(); };      // 新的一张加载好了才换下旧的，中间不留空白
+      img.onerror = () => img.remove();
+      img.src = src;
+      th.prepend(img);
+    }
+  }
+  let len = th.querySelector('.len');
+  if (f.duration) {
+    if (!len) th.append(len = h('span', { class: 'len num' }));
+    len.textContent = fmt(f.duration);
+  } else if (len) len.remove();
+  const mark = th.querySelector('.new'), isNew = S.newNames.has(f.name);
+  if (isNew && !mark) th.append(h('span', { class: 'new' }, tr('新', 'New')));
+  else if (!isNew && mark) mark.remove();
+
+  const name = el.querySelector('.name'), caption = el.querySelector('.caption');
+  const text = f.busy ? tr('正在写入…', 'Writing…') : info.kind + ' · ' + fmtSize(f.size);
+  if (name.textContent !== info.title) name.textContent = info.title;
+  if (caption.textContent !== text) caption.textContent = text;
+
+  const hover = el.querySelector('.hover');
+  if (f.busy && hover) hover.remove();
+  else if (!f.busy && !hover)
+    el.append(h('div', { class: 'hover' },
+      h('button', { class: 'icon-btn', 'data-act': 'trim', title: tr('裁剪', 'Trim'), html: ICON.cut }),
+      h('button', { class: 'icon-btn', 'data-act': 'delete', title: tr('删除', 'Delete'), html: ICON.trash })));
+}
+
+function renderGrid() {
+  const grid = $('grid');
+  const n = S.files.length;
+  $('libEmpty').hidden = n > 0;
+  $('libMeta').textContent = !n ? '' : EN
+    ? n + (n === 1 ? ' clip' : ' clips') + ' · ' + fmtSize(S.totalSize) + (S.free >= 0 ? ' · ' + fmtSize(S.free) + ' free' : '')
+    : n + ' 个 · 共 ' + fmtSize(S.totalSize) + (S.free >= 0 ? ' · 可用空间 ' + fmtSize(S.free) : '');
+
+  const keep = new Set();
+  let prev = null;
+  for (const f of S.files) {
+    let el = cards.get(f.name);
+    if (!el) {
+      el = h('div', { class: 'clip', title: f.name, tabindex: '0' },
+        h('div', { class: 'thumb' }),
+        h('div', { class: 'body' }, h('div', { class: 'name' }), h('div', { class: 'caption' })));
+      el.dataset.name = f.name;
+      el.dataset.thumb = '';
+      cards.set(f.name, el);
+    }
+    paintCard(el, f);
+    keep.add(f.name);
+    const want = prev ? prev.nextSibling : grid.firstChild;      // 它该在的位置；已经在那里就不动
+    if (el !== want) grid.insertBefore(el, want);
+    prev = el;
+  }
+  for (const [name, el] of cards) {
+    if (keep.has(name)) continue;
+    el.remove();
+    cards.delete(name);
+  }
+}
+$('grid').addEventListener('click', e => {
+  const card = e.target.closest('.clip');
+  if (!card || card.classList.contains('busy')) return;
+  const act = e.target.closest('[data-act]');
+  if (act && act.dataset.act === 'delete') deleteFile(card.dataset.name);
+  else openFile(card.dataset.name, !!act);
+});
+$('grid').addEventListener('keydown', e => {
+  const card = e.target.closest('.clip');
+  if (card && e.key === 'Enter') openFile(card.dataset.name);
+});
+
+// ------------------------------------------------------------ 片段页
+function openFile(name, trim) {
+  const f = S.files.find(x => x.name === name);
+  if (!f || f.busy) return;
+  S.cur = name; S.noVideo = false; S.previewing = false; S.pendingSeek = null; S.t = 0;
+  S.dur = 0; S.selIn = 0; S.selOut = 0; S.vs = 0; S.ve = 0; S.stripN = 0; S.trim = false;
+  if (S.newNames.delete(name)) renderGrid();
+  $('home').hidden = true; $('clip').hidden = false; $('btnBack').hidden = false;
+  $('verr').hidden = true; $('still').hidden = true; v.hidden = false;
+  $('strip').textContent = '';
+  v.src = url('/media', { f: name, v: f.v });
+  v.playbackRate = S.speed;
+  renderFileInfo();
+  if (f.duration) setDuration(f.duration);
+  setTrim(!!trim);
+  renderAll();
+}
+
+function goHome() {
+  S.cur = null; S.dur = 0; S.vs = 0; S.ve = 0; S.previewing = false; S.pendingSeek = null; S.trim = false; S.drag = null; S.resumePlay = false;
+  v.pause(); v.removeAttribute('src'); v.load();
+  $('clip').hidden = true; $('home').hidden = false; $('btnBack').hidden = true;
+}
+
+// 进入 / 退出裁剪：进入时默认选中整段，由用户拖两端的把手
+function setTrim(on) {
+  S.trim = on;
+  S.previewing = false;
+  if (on) { S.selIn = 0; S.selOut = S.dur; }
+  tl.classList.toggle('trimming', on);
+  $('trimbar').hidden = !on;
+  $('btnTrim').innerHTML = ICON.cut + (on ? tr('退出裁剪', 'Exit trim') : tr('裁剪', 'Trim'));
+  $('btnTrim').title = on ? tr('返回播放', 'Return to playback') : tr('从该片段中截取一段', 'Cut a shorter clip from this one');
+  renderAll();
+  requestAnimationFrame(() => { buildStrip(false); renderAll(); });
+}
+
+function setDuration(d) {
+  if (!(d > 0)) return;
+  const first = !S.dur;
+  S.dur = d;
+  if (first) { S.vs = 0; S.ve = d; }                     // 刚打开：显示整段
+  else {                                                 // 时长更准了一点：保持当前的显示范围，只是别超出去
+    const len = Math.min(S.ve - S.vs, d);
+    S.vs = clamp(S.vs, 0, d - len); S.ve = S.vs + len;
+  }
+  if (first || !S.trim) { S.selIn = 0; S.selOut = d; }
+  else { S.selOut = Math.min(S.selOut, d); S.selIn = Math.min(S.selIn, Math.max(0, S.selOut - MIN_LEN)); }
+  buildStrip(true);
+  renderAll();
+}
+
+function renderFileInfo() {
+  const f = curFile();
+  if (!f) return;
+  const info = parseName(f.name);
+  $('fileName').textContent = info.title;
+  const bits = [info.kind];
+  if (f.width) bits.push(f.width + '×' + f.height);
+  if (f.fps) bits.push(Math.round(f.fps) + tr(' 帧/秒', ' fps'));
+  if (f.codec) bits.push(f.codec.toUpperCase());
+  bits.push(fmtSize(f.size));
+  $('fileInfo').textContent = bits.join(' · ');
+  $('fileInfo').title = f.name;
+}
+
+v.addEventListener('loadedmetadata', () => {
+  if (isFinite(v.duration) && v.duration > 0 && (!S.dur || Math.abs(v.duration - S.dur) > 0.25)) setDuration(v.duration);
+  pumpSeek();
+});
+v.addEventListener('error', () => {
+  if (!S.cur || !v.getAttribute('src')) return;
+  S.noVideo = true;
+  v.hidden = true; $('still').hidden = false; $('verr').hidden = false;
+  showStill(S.t);
+  renderAll();
+});
+
+// ------------------------------------------------------------ 播放位置
+function curTime() {
+  if (S.noVideo) return S.t;
+  return S.pendingSeek != null ? S.pendingSeek : v.currentTime;
+}
+function seek(t) {
+  t = clamp(t, 0, S.dur || 0);
+  S.t = t;
+  if (S.noVideo) { showStill(t); renderPlayhead(); return; }
+  S.pendingSeek = t;
+  pumpSeek();
+  renderPlayhead();
+}
+// 浏览器还在处理上一次跳转时先不发新的，只保留最新目标，拖动才跟手
+function pumpSeek() {
+  if (S.pendingSeek == null || v.seeking || v.readyState < 1) return;
+  const t = S.pendingSeek;
+  S.pendingSeek = null;
+  // 目标正好落在两帧交界上时，浏览器有时显示的是前一帧；往后偏一毫秒，显示的就一定是这一帧
+  v.currentTime = Math.min(t + 0.001, S.dur || t + 0.001);
+}
+// 某一时刻所在那一帧的起点（读不到帧率时原样返回）
+function frameStart(t) {
+  const f = curFile();
+  return f && f.fps > 1 ? Math.floor(t * f.fps + 1e-3) / f.fps : t;
+}
+v.addEventListener('seeked', () => { pumpSeek(); renderPlayhead(); });
+
+let stillTimer = 0;
+function showStill(t) {
+  clearTimeout(stillTimer);
+  stillTimer = setTimeout(() => {
+    const f = curFile();
+    if (!f) return;
+    const p = { f: f.name, t: t.toFixed(2), h: 540, v: f.v };
+    if (zoomed()) p.a = 1;                   // 放大以后要看的是确切的那一帧
+    $('still').src = url('/thumb', p);
+  }, 120);
+}
+
+function togglePlay() {
+  if (S.noVideo || !S.cur) return;
+  S.previewing = false;
+  if (v.paused) {
+    if (S.dur && v.currentTime >= S.dur - 0.05) v.currentTime = 0;
+    v.play().catch(() => {});
+  } else v.pause();
+}
+function preview() {
+  if (S.noVideo || !S.cur) return;
+  S.previewing = true;
+  S.pendingSeek = null;
+  v.currentTime = S.selIn;
+  reveal(S.selIn);
+  v.play().catch(() => {});
+}
+// "预览"播到终点就停
+function checkPreviewEnd() {
+  if (S.previewing && !v.paused && v.currentTime >= S.selOut - 0.02) {
+    v.pause();
+    S.previewing = false;
+  }
+}
+// 时间轴放大后，播放位置走出了显示范围：翻到下一屏
+function followPlayhead() {
+  if (!zoomed() || S.drag || scrollGrab) return;
+  const now = v.currentTime;
+  if (now > S.ve || now < S.vs) { const len = S.ve - S.vs; setView(now - len * 0.05, now + len * 0.95); }
+}
+function loop() {
+  if (S.cur && !S.noVideo && !v.paused) {
+    checkPreviewEnd();
+    followPlayhead();
+    renderPlayhead();
+  }
+  // 拖着把手或播放位置到了时间轴边上：让画面跟着往那边移
+  if (S.drag && zoomed()) {
+    const r = tl.getBoundingClientRect();
+    const dir = S.dragX < r.left + 4 ? -1 : S.dragX > r.right - 4 ? 1 : 0;
+    if (dir) { panBy(dir * (S.ve - S.vs) * 0.012); dragTo(S.dragX); }
+  }
+  requestAnimationFrame(loop);
+}
+// 窗口最小化时浏览器不再调用 loop，靠 timeupdate 兜底
+for (const ev of ['play', 'pause', 'ended', 'timeupdate']) v.addEventListener(ev, () => { checkPreviewEnd(); renderPlayhead(); renderPlayBtn(); });
+v.addEventListener('click', togglePlay);
+
+// ------------------------------------------------------------ 时间轴的显示范围（缩放 / 平移）
+// 时间轴平时显示整段；放大后只显示 [S.vs, S.ve] 这一段，这样拖动把手就能精确到帧。
+const viewLen = () => Math.max(1e-6, S.ve - S.vs);
+const zoomLevel = () => (S.dur ? S.dur / viewLen() : 1);
+const zoomed = () => zoomLevel() > 1.001;
+const pos = time => (time - S.vs) / viewLen() * 100;      // 某一时刻在时间轴上的位置（百分比；不在显示范围里时小于 0 或大于 100）
+// 一帧有多长（读不到帧率时按 30 帧算）
+function frameDur() { const f = curFile(); return f && f.fps > 1 ? 1 / f.fps : 1 / 30; }
+
+function setView(vs, ve) {
+  if (!S.dur) return;
+  const len = clamp(ve - vs, Math.min(MIN_SPAN, S.dur), S.dur);
+  vs = clamp(vs, 0, S.dur - len);
+  if (Math.abs(vs - S.vs) < 1e-6 && Math.abs(vs + len - S.ve) < 1e-6) return;
+  S.vs = vs; S.ve = vs + len;
+  renderAll();
+  positionStrip();
+  clearTimeout(stripTimer);
+  stripTimer = setTimeout(() => buildStrip(false), 160);      // 停下来以后再换成新范围的缩略图
+}
+// 以某一时刻为中心放大（factor > 1）或缩小：这个时刻在时间轴上的位置保持不动
+function zoomAt(time, factor) {
+  if (!S.dur) return;
+  const old = viewLen();
+  const len = clamp(old / factor, Math.min(MIN_SPAN, S.dur), S.dur);
+  const rel = clamp((time - S.vs) / old, 0, 1);
+  setView(time - rel * len, time - rel * len + len);
+}
+function panBy(dt) { setView(S.vs + dt, S.ve + dt); }
+// 用按钮或键盘缩放时以播放位置为中心（它在显示范围里的话），否则以中间为中心
+function viewAnchor() { const now = curTime(); return now >= S.vs && now <= S.ve ? now : (S.vs + S.ve) / 2; }
+// 跳到的位置不在显示范围里：把显示范围挪过去
+function reveal(time) {
+  if (!zoomed() || (time >= S.vs && time <= S.ve)) return;
+  const len = viewLen();
+  setView(time - len / 2, time + len / 2);
+}
+
+$('tlwrap').addEventListener('wheel', e => {
+  if (!S.dur) return;
+  e.preventDefault();
+  // 滚轮缩放（以鼠标所在位置为中心）；按住 Shift 或横向滚动则平移
+  if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) panBy((e.deltaX || e.deltaY) / 100 * viewLen() * 0.12);
+  else zoomAt(xToTime(e.clientX), Math.exp(-e.deltaY * 0.0022));
+}, { passive: false });
+$('zoomIn').onclick = () => zoomAt(viewAnchor(), 2);
+$('zoomOut').onclick = () => zoomAt(viewAnchor(), 0.5);
+$('zoomFit').onclick = () => setView(0, S.dur);
+
+// 时间轴下面的那一条：表示当前显示的是整段里的哪一部分，可以拖着平移
+let scrollGrab = null;
+function scrollToX(x) {
+  const bar = $('tlScroll'), r = bar.getBoundingClientRect();
+  const room = r.width - $('tlThumb').offsetWidth, len = viewLen();
+  const vs = room > 0 ? clamp((x - scrollGrab.off - r.left) / room, 0, 1) * (S.dur - len) : 0;
+  setView(vs, vs + len);
+}
+$('tlScroll').addEventListener('pointerdown', e => {
+  if (e.button !== 0 || !zoomed()) return;
+  const th = $('tlThumb').getBoundingClientRect();
+  // 按在滑块上：从按住的那一点开始拖；按在空白处：滑块中心跳到那里
+  scrollGrab = { off: e.clientX >= th.left && e.clientX <= th.right ? e.clientX - th.left : th.width / 2 };
+  $('tlScroll').classList.add('dragging');
+  try { $('tlScroll').setPointerCapture(e.pointerId); } catch (_) { /* 捕获失败也能拖 */ }
+  scrollToX(e.clientX);
+  e.preventDefault();
+});
+$('tlScroll').addEventListener('pointermove', e => { if (scrollGrab) scrollToX(e.clientX); });
+for (const ev of ['pointerup', 'pointercancel']) $('tlScroll').addEventListener(ev, e => {
+  if (!scrollGrab) return;
+  scrollGrab = null;
+  $('tlScroll').classList.remove('dragging');
+  try { $('tlScroll').releasePointerCapture(e.pointerId); } catch (_) { /* 已释放 */ }
+});
+
+// ------------------------------------------------------------ 画面
+function renderAll() { renderSel(); renderPlayhead(); renderPlayBtn(); renderRuler(); renderZoom(); }
+
+function renderPlayBtn() {
+  $('btnPlay').innerHTML = v.paused ? ICON.play : ICON.pause;
+  $('btnPlay').disabled = S.noVideo;
+  $('btnPreview').disabled = S.noVideo || !S.dur;
+}
+
+function renderPlayhead() {
+  const now = curTime();
+  const p = S.dur ? pos(now) : 0;
+  $('ph').hidden = p < -0.05 || p > 100.05;            // 播放位置不在当前显示的范围里
+  $('ph').style.left = clamp(p, 0, 100) + '%';
+  $('curT').textContent = (S.trim || zoomed()) ? fmtFine(now) : fmt(now);
+  $('durT').textContent = fmt(S.dur);
+}
+
+function renderSel() {
+  // 选中的范围可能有一头（或整个）不在当前显示的范围里：画到边上为止，那一头不画把手
+  const a = S.dur ? pos(S.selIn) : 0, b = S.dur ? pos(S.selOut) : 100;
+  const ca = clamp(a, 0, 100), cb = clamp(b, 0, 100);
+  $('sel').style.left = ca + '%';
+  $('sel').style.width = Math.max(0, cb - ca) + '%';
+  $('hL').hidden = a < -0.01 || a > 100.01;
+  $('hR').hidden = b < -0.01 || b > 100.01;
+  $('shL').style.width = ca + '%';
+  $('shR').style.width = Math.max(0, 100 - cb) + '%';
+  $('inT').textContent = fmtSel(S.selIn);
+  $('outT').textContent = fmtSel(S.selOut);
+  const len = S.selOut - S.selIn;
+  $('lenT').textContent = fmtLen(len);
+  const f = curFile();
+  $('sizeT').textContent = (f && S.dur) ? tr('约 ', '≈ ') + fmtSize(f.size * len / S.dur) : '';
+
+  const whole = !S.dur || (S.selIn <= 0.05 && S.selOut >= S.dur - 0.05);
+  const btn = $('btnExport');
+  btn.disabled = whole || S.exporting || !S.ffmpegOk;
+  btn.title = !S.ffmpegOk ? tr('未找到 ffmpeg，无法导出', 'ffmpeg not found. Export is unavailable.')
+    : whole ? tr('请先拖动时间轴两端的滑块选择范围', 'Drag the handles at either end of the timeline to select a range')
+    : tr('无损导出所选范围，不重新编码', 'Export the selected range losslessly, without re-encoding');
+  btn.textContent = '';
+  if (S.exporting) btn.append(h('span', { class: 'ring' }), tr('正在导出', 'Exporting'));
+  else btn.append(tr('导出片段', 'Export clip'));
+}
+
+function renderRuler() {
+  const ruler = $('ruler');
+  ruler.textContent = '';
+  const width = tl.clientWidth;
+  if (!S.dur || !width) return;
+  const len = viewLen();
+  const steps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+  const step = steps.find(s => s / len * width >= 78) || 3600;
+  const tick = time => {                                   // 刻度不到 1 秒时带一位小数
+    if (step >= 1) return fmt(time);
+    const c = Math.round(time * 10);
+    return fmt(Math.floor(c / 10)) + '.' + (c % 10);
+  };
+  const first = Math.ceil(S.vs / step - 1e-6);
+  for (let i = first; i < first + 200; i++) {
+    const time = i * step;
+    if (time > S.ve + 1e-6) break;
+    const x = (time - S.vs) / len * width;
+    if (width - x < 34 && x > 1 && S.ve - time > 1e-6) continue;      // 太靠右的不画，免得标签伸出去
+    const s = h('span', null, tick(time));
+    s.style.left = (x / width * 100) + '%';
+    ruler.append(s);
+  }
+}
+
+function renderZoom() {
+  const z = zoomLevel();
+  $('zoomFit').textContent = (z < 1.05 ? '1' : z < 10 ? z.toFixed(1) : String(Math.round(z))) + '×';
+  $('zoomOut').disabled = $('zoomFit').disabled = !S.dur || !zoomed();
+  $('zoomIn').disabled = !S.dur || viewLen() <= Math.min(MIN_SPAN, S.dur) + 1e-6;
+
+  const bar = $('tlScroll'), on = S.dur > 0 && zoomed();
+  bar.style.visibility = on ? 'visible' : 'hidden';
+  if (!on) return;
+  const width = bar.clientWidth, len = viewLen();
+  const tw = Math.max(28, len / S.dur * width);
+  $('tlThumb').style.width = tw + 'px';
+  $('tlThumb').style.left = (S.dur - len > 1e-6 ? S.vs / (S.dur - len) * (width - tw) : 0) + 'px';
+}
+
+// 缩略图条。每一排是为某一段时间生成的；显示范围变了以后先把旧的一排按比例摆到新位置，
+// 新的一排加载完再把旧的拿掉，所以缩放时不会闪成空白。
+let stripTimer = 0;
+function positionStrip() {
+  for (const row of $('strip').children) {
+    const a = +row.dataset.vs, b = +row.dataset.ve;
+    row.style.left = pos(a) + '%';
+    row.style.width = (b - a) / viewLen() * 100 + '%';
+  }
+}
+function buildStrip(force) {
+  const width = tl.clientWidth, height = tl.clientHeight;
+  const f = curFile();
+  if (!width || !height || !S.dur || !f) return;
+  const n = clamp(Math.round(width / (height * 16 / 9)), 4, 40);
+  if (!force && n === S.stripN && Math.abs(S.stripVs - S.vs) < 1e-6 && Math.abs(S.stripVe - S.ve) < 1e-6) return;
+  S.stripN = n; S.stripVs = S.vs; S.stripVe = S.ve;
+  const strip = $('strip'), old = [...strip.children];
+  const row = h('div', { class: 'row' });
+  row.dataset.vs = S.vs; row.dataset.ve = S.ve;
+  // 显示的时间范围没变、只是张数变了（窗口大小变了）：新旧两排的格子对不齐，新的一排先不露面，
+  // 等全部加载好再一次换上，否则会一张一张地叠在旧的上面，看起来是乱的
+  if (old.length && old.every(el => +el.dataset.vs === S.vs && +el.dataset.ve === S.ve)) row.style.visibility = 'hidden';
+  const len = viewLen();
+  const exact = len / n < 2.5;             // 相邻两张隔得很近时要取确切的那一帧，否则几张会是同一个画面
+  let pending = n;
+  const dropOld = () => { row.style.visibility = ''; for (const el of old) el.remove(); };
+  const settle = () => { if (--pending <= 0) dropOld(); };
+  for (let i = 0; i < n; i++) {
+    const img = h('img', { alt: '', draggable: 'false' });
+    img.onload = settle;
+    img.onerror = () => { img.style.visibility = 'hidden'; settle(); };
+    const p = { f: f.name, t: (S.vs + (i + 0.5) * len / n).toFixed(exact ? 2 : 1), h: 108, v: f.v };
+    if (exact) p.a = 1;
+    img.src = url('/thumb', p);
+    row.append(img);
+  }
+  strip.append(row);
+  positionStrip();
+  setTimeout(dropOld, 5000);
+}
+// 窗口大小还在变的时候不换缩略图（现有的一排会跟着拉宽或压窄），停下来以后再按新的宽度换一排
+new ResizeObserver(() => {
+  clearTimeout(stripTimer);
+  stripTimer = setTimeout(() => buildStrip(false), 160);
+  renderRuler(); renderZoom();
+}).observe(tl);
+
+// ------------------------------------------------------------ 时间轴拖动
+function xToTime(x) {
+  const r = tl.getBoundingClientRect();
+  return S.vs + clamp((x - r.left) / r.width, 0, 1) * viewLen();
+}
+// 拖把手时吸附到多细：显示的范围越短越细，放大到半分钟以内就是逐帧。拖到最右边则取视频真正的结尾
+function snapStep() { const len = viewLen(); return len > 300 ? 1 : len > 30 ? 0.1 : frameDur(); }
+function snap(t) {
+  const step = snapStep();
+  if (S.dur - t < step / 2) return S.dur;
+  return Math.round(t / step) * step;
+}
+function dragTo(x) {
+  S.dragX = x;
+  const t = xToTime(x - S.dragOff);
+  const min = Math.min(MIN_LEN, S.dur);
+  if (S.drag === 'in') { S.selIn = clamp(snap(t), 0, S.selOut - min); seek(S.selIn); }
+  else if (S.drag === 'out') { S.selOut = clamp(snap(t), S.selIn + min, S.dur); seek(S.selOut); }
+  else seek(t);
+  renderSel();
+}
+tl.addEventListener('pointerdown', e => {
+  if (!S.dur || e.button !== 0) return;
+  const r = tl.getBoundingClientRect();
+  const xOf = time => r.left + pos(time) / 100 * r.width;
+  S.previewing = false;
+  // 抓的是把手或播放位置的圆点：记下抓的位置和它中心的偏差，免得一按下去就跳一下
+  if (S.trim && e.target.closest('.hl')) { S.drag = 'in'; S.dragOff = e.clientX - xOf(S.selIn); v.pause(); }
+  else if (S.trim && e.target.closest('.hr')) { S.drag = 'out'; S.dragOff = e.clientX - xOf(S.selOut); v.pause(); }
+  else if (e.target.closest('.knob')) { S.drag = 'scrub'; S.dragOff = e.clientX - xOf(curTime()); }
+  else { S.drag = 'scrub'; S.dragOff = 0; }
+  if (S.drag === 'scrub') {
+    tl.classList.add('scrubbing');
+    // 正在播放时按住拖动：按住期间停在鼠标所在的画面上，松开后再接着播放
+    S.resumePlay = !S.noVideo && !v.paused;
+    if (S.resumePlay) v.pause();
+  }
+  try { tl.setPointerCapture(e.pointerId); } catch (_) { /* 捕获失败也能拖，只是鼠标移出时间轴就停 */ }
+  dragTo(e.clientX);
+  e.preventDefault();
+});
+tl.addEventListener('pointermove', e => { if (S.drag) dragTo(e.clientX); });
+function endDrag(e) {
+  if (!S.drag) return;
+  S.drag = null;
+  tl.classList.remove('scrubbing');
+  try { tl.releasePointerCapture(e.pointerId); } catch (_) { /* 已释放 */ }
+  if (S.resumePlay) {
+    S.resumePlay = false;
+    if (S.cur && !S.noVideo) v.play().catch(() => {});
+  }
+}
+tl.addEventListener('pointerup', endDrag);
+tl.addEventListener('pointercancel', endDrag);
+
+// ------------------------------------------------------------ 选择范围
+function setIn() {
+  if (!S.dur) return;
+  if (!S.trim) setTrim(true);
+  const t = frameStart(curTime());
+  if (t > S.dur - MIN_LEN) return;
+  S.selIn = t;
+  if (S.selOut < t + MIN_LEN) S.selOut = S.dur;
+  renderSel();
+}
+function setOut() {
+  if (!S.dur) return;
+  if (!S.trim) setTrim(true);
+  const t = frameStart(curTime());
+  if (t < MIN_LEN) return;
+  S.selOut = t;
+  if (S.selIn > t - MIN_LEN) S.selIn = 0;
+  renderSel();
+}
+// 起点 / 终点旁边的 − + 键：每次挪一帧，按住 Shift 挪一秒
+function nudge(which, dir, big) {
+  if (!S.dur) return;
+  S.previewing = false;
+  v.pause();
+  const d = dir * (big ? 1 : frameDur());
+  if (which === 'in') { S.selIn = clamp(S.selIn + d, 0, S.selOut - MIN_LEN); seek(S.selIn); reveal(S.selIn); }
+  else { S.selOut = clamp(S.selOut + d, S.selIn + MIN_LEN, S.dur); seek(S.selOut); reveal(S.selOut); }
+  renderSel();
+}
+// 按住不放会连续挪动
+let nudgeDelay = 0, nudgeRepeat = 0;
+function stopNudge() { clearTimeout(nudgeDelay); clearInterval(nudgeRepeat); }
+document.addEventListener('pointerdown', e => {
+  const n = e.target.closest('[data-nudge]');
+  if (!n || e.button !== 0) return;
+  const p = n.dataset.nudge.split(','), big = e.shiftKey;
+  stopNudge();
+  nudge(p[0], +p[1], big);
+  nudgeDelay = setTimeout(() => { nudgeRepeat = setInterval(() => nudge(p[0], +p[1], big), 60); }, 400);
+});
+for (const ev of ['pointerup', 'pointercancel', 'blur']) window.addEventListener(ev, stopNudge);
+
+// ------------------------------------------------------------ 导出 / 删除
+async function doExport() {
+  const f = curFile();
+  if (!f || S.exporting) return;
+  const del = $('delSrc').checked;
+  S.exporting = true;
+  S.previewing = false;
+  v.pause();
+  renderSel();
+  try {
+    // 按整帧来截：从起点所在的那一帧开始，到终点所在的那一帧为止（把手停在哪一帧，那一帧就是片段的最后一帧）
+    const start = frameStart(S.selIn);
+    const end = S.selOut >= S.dur - 0.01 || !(f.fps > 1) ? S.selOut : Math.min(S.dur, frameStart(S.selOut) + frameDur());
+    const r = await api('/api/export', { f: f.name, start, end, deleteSource: del });
+    S.newNames.add(r.name);
+    if (r.warn) notify(r.warn, { kind: 'error' });
+    await refresh();
+    const len = fmtSpan(r.duration);
+    if (r.sourceDeleted) {
+      openFile(r.name);
+      notify(tr('已导出 ' + len + '的片段，原视频已移至回收站。', 'Exported a ' + len + ' clip. The original was moved to the Recycle Bin.'), { kind: 'success' });
+    } else {
+      setTrim(false);
+      notify(tr('已导出 ' + len + '的片段（' + fmtSize(r.size) + '）。', 'Exported a ' + len + ' clip (' + fmtSize(r.size) + ').'), {
+        kind: 'success',
+        actions: [{ label: tr('查看', 'View'), run: () => openFile(r.name) },
+                  { label: tr('在文件夹中显示', 'Show in folder'), run: () => api('/api/reveal', { f: r.name }).catch(fail) }],
+      });
+    }
+  } catch (e) {
+    notify(tr('导出失败：', 'Export failed: ') + e.message, { kind: 'error' });
+  } finally {
+    S.exporting = false;
+    renderSel();
+  }
+}
+
+async function deleteFile(name) {
+  const title = parseName(name).title;
+  const ok = await confirmDlg(tr('删除此片段？', 'Delete this clip?'),
+    tr('「' + title + '」将移至回收站，可从回收站还原。', '"' + title + '" will be moved to the Recycle Bin. You can restore it from there.'), tr('删除', 'Delete'));
+  if (!ok) return;
+  if (S.cur === name) goHome();
+  try {
+    await api('/api/delete', { f: name });
+  } catch (e) {
+    notify(tr('删除失败：', 'Delete failed: ') + e.message, { kind: 'error' });
+  }
+  refresh();
+}
+
+// ------------------------------------------------------------ 录制
+async function startRec() {
+  await api('/api/rec/start', {});
+  await refresh();
+}
+async function stopRec() {
+  const ok = await confirmDlg(tr('停止后台录制？', 'Stop background recording?'),
+    tr('尚未保存的画面将丢失。可随时重新开始。', 'Unsaved footage will be lost. You can start again at any time.'), tr('停止', 'Stop'));
+  if (!ok) return;
+  try {
+    await api('/api/rec/stop', {});
+    await refresh();
+  } catch (e) { fail(e); }
+}
+
+// ------------------------------------------------------------ 录制设置
+const REPLAY_PRESETS = [900, 1800, 3600, 7200];      // 回放时长的几个常用档（秒）；另有"自定义"
+const MIN_REPLAY_MIN = 1, MAX_REPLAY_MIN = 720;      // 自定义时填分钟数，1 分钟到 12 小时
+const W = { info: null, form: null, plan: null, busy: false, loading: false, planTimer: 0, planSeq: 0, encErr: '', fieldErr: {} };
+
+async function openSetup() {
+  W.form = null;                 // 每次打开都从现在的设置开始
+  W.plan = null;
+  W.fieldErr = {};
+  $('setup').hidden = false;
+  v.pause();
+  await loadSetupInfo();
+}
+function closeSetup() { $('setup').hidden = true; }
+
+// 读取现在的设置和本机的情况：有哪些显示器、能用哪些编码器
+async function loadSetupInfo() {
+  W.loading = true;
+  renderSetup();
+  try {
+    const info = await api('/api/rec/info');
+    W.info = info;
+    const s = info.settings;
+    if (!W.form) {
+      W.form = { monitorId: s.monitorId, cap: s.cap, fps: s.fps, seconds: s.seconds, custom: !REPLAY_PRESETS.includes(s.seconds), customBad: false,
+                 encoder: s.encoder, mic: s.mic, folder: s.folder, buffer: s.buffer, autostart: s.autostart, closeAction: s.closeAction };
+    } else if (!info.monitors.some(m => m.id === W.form.monitorId)) {
+      W.form.monitorId = s.monitorId;
+    }
+    if (!info.encoders) loadEncoders();
+  } catch (e) {
+    fail(e);
+  } finally {
+    W.loading = false;
+    renderSetup();
+  }
+}
+// 能用的编码器要问录制组件，第一次可能花几秒钟：对话框先打开，问到了再把下拉列表填上
+async function loadEncoders() {
+  W.encErr = '';
+  try {
+    const r = await api('/api/rec/encoders');
+    if (W.info) W.info.encoders = r.encoders;
+  } catch (e) {
+    W.encErr = e.message;
+    if (W.info) W.info.encoders = [];
+  }
+  renderSetup();
+}
+
+function seg(id, options, value, onPick) {
+  const box = $(id);
+  box.textContent = '';
+  for (const [val, label] of options) {
+    const b = h('button', { class: val === value ? 'on' : '', type: 'button' }, label);
+    b.onclick = () => { onPick(val); renderSetup(); };
+    box.append(b);
+  }
+}
+
+// 显示器。只有一台时只写出它的型号和分辨率；两台以上时按它们在桌面上的实际位置和大小
+// 等比例画成排布图（和系统「显示设置」里看到的一样），点哪个方块就录哪台。返回选中的那一台。
+function renderMonitors(info, f) {
+  const box = $('suMonitors'), note = $('suMonNote');
+  const mons = info.monitors || [];
+  const many = mons.length > 1;
+  const mon = mons.find(m => m.id === f.monitorId) || mons[0];
+  const describe = m => [
+    many ? tr('显示器 ', 'Display ') + m.number : '', m.name, m.w + '×' + m.h, m.hz + ' Hz',
+    many && m.primary ? tr('主显示器', 'Main display') : '',
+  ].filter(Boolean).join(' · ');
+
+  $('suIdentify').hidden = !many;
+  $('suMonHint').textContent = many ? tr('选择运行游戏的显示器', 'Choose the display your games run on') : '';
+  note.className = 'note num' + (mon ? '' : ' bad');
+  note.textContent = mon ? describe(mon) : tr('未检测到显示器。', 'No display detected.');
+  box.textContent = '';
+  box.hidden = !many;
+  if (!many) return mon;
+
+  // 整个桌面的范围：显示器可以在主显示器的左边或上边，那时坐标是负数
+  const minX = Math.min(...mons.map(m => m.x)), minY = Math.min(...mons.map(m => m.y));
+  const maxX = Math.max(...mons.map(m => m.x + m.w)), maxY = Math.max(...mons.map(m => m.y + m.h));
+  const k = Math.min(MAP_W / (maxX - minX), MAP_H / (maxY - minY));
+  box.style.width = Math.round((maxX - minX) * k) + 'px';
+  box.style.height = Math.round((maxY - minY) * k) + 'px';
+  for (const m of mons) {
+    const b = h('button', { class: 'mon' + (m.id === f.monitorId ? ' on' : ''), type: 'button', title: describe(m) }, String(m.number));
+    b.style.left = (m.x - minX) * k + 'px';
+    b.style.top = (m.y - minY) * k + 'px';
+    b.style.width = m.w * k + 'px';
+    b.style.height = m.h * k + 'px';
+    b.onclick = () => { f.monitorId = m.id; renderSetup(); };
+    box.append(b);
+  }
+  return mon;
+}
+
+function renderSetup() {
+  const info = W.info, f = W.form;
+  if (!info || !f) { renderPlan(); return; }
+  if (document.activeElement !== $('suFolder')) $('suFolder').value = f.folder || '';
+  if (document.activeElement !== $('suBuffer')) $('suBuffer').value = f.buffer || '';
+  // 「浏览…」要靠程序自己的窗口来开系统的选择文件夹对话框；用浏览器窗口显示时没有，就不显示这两个按钮
+  $('suFolderBrowse').hidden = $('suBufferBrowse').hidden = !HOST;
+  $('suBufferReset').hidden = samePath(f.buffer, info.bufferDefault);
+
+  const mon = renderMonitors(info, f);
+  W.noMonitor = !mon;
+
+  // 分辨率：只列出不超过显示器本身的档位
+  const shortSide = mon ? Math.min(mon.w, mon.h) : 1080;
+  const caps = [];
+  if (shortSide > 1080) caps.push([1080, '1080p']);
+  if (shortSide > 1440) caps.push([1440, '1440p']);
+  caps.push([0, shortSide > 1080 ? tr('原始 ', 'Native ') + (mon.w + '×' + mon.h) : tr('原始分辨率', 'Native resolution')]);
+  if (!caps.some(c => c[0] === f.cap)) f.cap = caps[0][0];
+  seg('suCap', caps, f.cap, val => { f.cap = val; });
+  seg('suFps', [60, 30].map(n => [n, n + tr(' 帧/秒', ' fps')]), f.fps, val => { f.fps = val; });
+
+  // 回放时长：几个常用档，或者自己填分钟数
+  seg('suLength', REPLAY_PRESETS.map(s => [s, fmtSpan(s)]).concat([['custom', tr('自定义', 'Custom')]]), f.custom ? 'custom' : f.seconds, val => {
+    f.custom = val === 'custom';
+    f.customBad = false;
+    if (!f.custom) f.seconds = val;
+    else setTimeout(() => { $('suCustom').focus(); $('suCustom').select(); });
+  });
+  $('suCustomRow').hidden = !f.custom;
+  if (f.custom && document.activeElement !== $('suCustom')) $('suCustom').value = Math.round(f.seconds / 60);
+
+  // 编码器："自动"排第一；其余的要等录制组件报上来
+  const sel = $('suEncoder'), encs = info.encoders;
+  if (encs && f.encoder !== 'auto' && !encs.some(e => e.id === f.encoder)) f.encoder = 'auto';      // 上次选的那个现在用不了了
+  sel.textContent = '';
+  sel.append(h('option', { value: 'auto' }, tr('自动', 'Automatic')));
+  for (const e of encs || []) sel.append(h('option', { value: e.id }, e.label));
+  if (!encs) sel.append(h('option', { value: f.encoder === 'auto' ? '' : f.encoder, disabled: '' }, tr('正在检测…', 'Detecting…')));
+  sel.value = f.encoder;
+  $('suEncNote').hidden = !W.encErr;
+  $('suEncNote').textContent = W.encErr;
+
+  $('suMic').checked = !!f.mic;
+  $('suAutostart').checked = !!f.autostart;
+  seg('suClose', [['ask', tr('每次询问', 'Ask every time')], ['tray', tr('后台运行', 'Run in background')], ['exit', tr('退出程序', 'Exit')]],
+    f.closeAction, val => { f.closeAction = val; });
+
+  renderPlan();
+  schedulePlan();
+}
+
+// 对话框里跟着"方案"走的那几处：缓存占多少磁盘、放不放得下、保存后要不要重新开始录制、保存按钮能不能点
+function renderPlan() {
+  const info = W.info, f = W.form, p = W.plan;
+  const apply = $('suApply');
+  const first = info && !info.configured;      // 第一次设置：保存的同时就开始录制
+  apply.textContent = '';
+  if (W.busy) apply.append(h('span', { class: 'ring' }));
+  apply.append(first ? tr('开始录制', 'Start recording') : tr('保存', 'Save'));
+  if (!info || !f) { apply.disabled = true; return; }
+
+  const disk = $('suDisk');
+  if (f.custom && f.customBad) {
+    disk.className = 'note bad';
+    disk.textContent = tr('请输入 ' + MIN_REPLAY_MIN + ' 至 ' + MAX_REPLAY_MIN + ' 之间的分钟数', 'Enter a number of minutes between ' + MIN_REPLAY_MIN + ' and ' + MAX_REPLAY_MIN);
+  } else if (p && !p.fits) {
+    disk.className = 'note bad';
+    disk.textContent = p.diskError;
+  } else {
+    disk.className = 'note num';
+    disk.textContent = !p ? '' : tr('预计占用 ' + fmtSize(p.needBytes) + ' 磁盘空间', 'Uses about ' + fmtSize(p.needBytes) + ' of disk space')
+      + (p.freeBytes >= 0 ? tr(' · ' + p.drive + ' 可用 ' + fmtSize(p.freeBytes), ' · ' + fmtSize(p.freeBytes) + ' free on ' + p.drive) : '')
+      + tr(' · 输出 ', ' · output ') + p.outW + '×' + p.outH + tr('，约 ', ', about ') + Math.round(p.kbps / 1000) + ' Mbps';
+  }
+
+  // 保存位置和缓存位置：有问题就在各自下面说明；缓存位置没问题时写出实际用的是哪个文件夹
+  const folderErr = W.fieldErr.folder || (p && p.folderError) || '';
+  $('suFolderNote').hidden = !folderErr;
+  $('suFolderNote').textContent = folderErr;
+  $('suFolder').classList.toggle('bad', !!folderErr);
+  const bufferErr = W.fieldErr.buffer || (p && p.bufferError) || '';
+  $('suBufferNote').className = 'note' + (bufferErr ? ' bad' : '');
+  $('suBufferNote').textContent = bufferErr || (p ? tr('缓存文件夹：', 'Buffer folder: ') + p.bufferDir : '');
+  $('suBuffer').classList.toggle('bad', !!bufferErr);
+
+  const warns = $('suWarns');
+  warns.textContent = '';
+  for (const w of (p && p.warnings) || [])
+    warns.append(h('div', { class: 'infobar warn' }, h('span', { class: 'ico', html: ICON.warn }), h('div', { class: 'msg' }, w)));
+
+  // 正在录制时，有的改动要重新开始录制才生效；换了画面来源或编码的，缓存里已有的画面也留不住
+  const restart = $('suRestart'), kind = p ? p.restart : 'none';
+  restart.hidden = kind === 'none';
+  restart.textContent = kind === 'empty'
+    ? tr('保存后将重新开始录制，回放缓存中已有的画面会被清空。', 'Saving restarts recording and clears the footage already in the replay buffer.')
+    : tr('保存后将重新开始录制。', 'Saving restarts recording.');
+
+  apply.disabled = W.busy || W.loading || W.noMonitor || (f.custom && f.customBad) || (p ? !p.fits : false) || !!folderErr || !!bufferErr;
+}
+
+// 让后台按当前选择算出分辨率、码率和缓存要占的磁盘空间
+function schedulePlan() {
+  clearTimeout(W.planTimer);
+  W.planTimer = setTimeout(async () => {
+    const f = W.form;
+    if (!f || !W.info) return;
+    const seq = ++W.planSeq;
+    try {
+      const p = await api('/api/rec/plan', { monitorId: f.monitorId, cap: f.cap, fps: f.fps, seconds: f.seconds, encoder: f.encoder, mic: f.mic,
+        folder: f.folder, buffer: f.buffer });
+      if (seq !== W.planSeq) return;
+      W.plan = p;
+    } catch (e) {
+      if (seq !== W.planSeq) return;
+      W.plan = null;
+    }
+    renderPlan();
+  }, 120);
+}
+
+async function applySetup() {
+  const f = W.form;
+  if (W.busy || !f || !W.info) return;
+  f.folder = $('suFolder').value.trim();
+  f.buffer = $('suBuffer').value.trim();
+  W.busy = true;
+  renderPlan();
+  try {
+    await api('/api/rec/settings', { monitorId: f.monitorId, cap: f.cap, fps: f.fps, seconds: f.seconds, encoder: f.encoder, mic: f.mic,
+      folder: f.folder, buffer: f.buffer, autostart: f.autostart, closeAction: f.closeAction, start: !W.info.configured });
+    closeSetup();
+    await refresh();
+  } catch (e) {
+    const field = e.data && e.data.errors && e.data.errors.field;
+    if (field) {
+      W.fieldErr[field] = e.message;      // 是某一栏的问题（比如那个文件夹建不出来）：就写在那一栏下面
+      $(field === 'buffer' ? 'suBuffer' : 'suFolder').focus();
+    } else {
+      fail(e);
+      W.busy = false;
+      loadSetupInfo();        // 出错多半是情况变了（比如显示器刚拔掉）：重新读取一遍
+    }
+  } finally {
+    W.busy = false;
+    renderPlan();
+  }
+}
+
+$('suCancel').onclick = closeSetup;
+$('suApply').onclick = applySetup;
+$('suIdentify').onclick = () => api('/api/monitors/identify', {}).catch(fail);
+// 两个路径是不是同一个文件夹（只为了决定要不要显示「恢复默认」，比得粗一点没关系）
+const samePath = (a, b) => (a || '').trim().replace(/[\\/]+$/, '').toLowerCase() === (b || '').trim().replace(/[\\/]+$/, '').toLowerCase();
+// 保存位置、缓存位置：可以直接改文本框，也可以点「浏览…」在系统的对话框里选
+function folderField(key, box) {
+  const set = value => {
+    if (!W.form) return;
+    W.form[key] = value;
+    delete W.fieldErr[key];
+    $('suBufferReset').hidden = samePath(W.form.buffer, W.info && W.info.bufferDefault);
+    renderPlan();
+    schedulePlan();
+  };
+  $(box).addEventListener('input', () => set($(box).value));
+  $(box + 'Browse').onclick = async () => {
+    if (!W.form || W.picking) return;
+    W.picking = true;                        // 对话框开着的时候不再开第二个
+    try {
+      const r = await api('/api/pickfolder', { which: key, path: $(box).value.trim() });
+      if (r.path) { $(box).value = r.path; set(r.path); }
+    } catch (e) {
+      fail(e);
+    } finally {
+      W.picking = false;
+    }
+  };
+}
+folderField('folder', 'suFolder');
+folderField('buffer', 'suBuffer');
+$('suBufferReset').onclick = () => {
+  if (!W.form || !W.info) return;
+  W.form.buffer = W.info.bufferDefault;
+  $('suBuffer').value = W.form.buffer;
+  delete W.fieldErr.buffer;
+  renderSetup();
+};
+$('suEncoder').onchange = () => { if (W.form) { W.form.encoder = $('suEncoder').value || 'auto'; schedulePlan(); } };
+$('suMic').onchange = () => { if (W.form) { W.form.mic = $('suMic').checked; schedulePlan(); } };
+$('suAutostart').onchange = () => { if (W.form) W.form.autostart = $('suAutostart').checked; };
+$('suCustom').addEventListener('input', () => {
+  const f = W.form, box = $('suCustom');
+  box.value = box.value.replace(/\D/g, '');
+  if (!f) return;
+  const minutes = parseInt(box.value, 10);
+  f.customBad = !(minutes >= MIN_REPLAY_MIN && minutes <= MAX_REPLAY_MIN);
+  if (!f.customBad) f.seconds = minutes * 60;
+  renderPlan();
+  if (!f.customBad) schedulePlan();
+});
+
+// ------------------------------------------------------------ 关闭窗口时问一句
+// 设置里的"关闭窗口时"是"每次询问"时，点关闭键（或 Alt+F4、任务栏上的"关闭窗口"）后由窗口那边通知到这里。
+// 选好以后告诉后台：留在后台运行，还是退出；勾了"不再提醒"就记下来，以后不再问。
+function askClose() {
+  closeLang();
+  document.querySelector('input[name="clAction"][value="tray"]').checked = true;
+  $('clRemember').checked = false;
+  $('closeDlg').hidden = false;
+  document.querySelector('input[name="clAction"]:checked').focus();
+}
+function closeAsk() { $('closeDlg').hidden = true; }
+async function confirmClose() {
+  const action = document.querySelector('input[name="clAction"]:checked').value;
+  const remember = $('clRemember').checked;
+  closeAsk();
+  try { await api('/api/close', { action, remember }); } catch (e) { fail(e); }
+}
+$('clOk').onclick = confirmClose;
+$('clCancel').onclick = closeAsk;
+$('closeDlg').addEventListener('pointerdown', e => { if (e.target === $('closeDlg')) closeAsk(); });      // 点对话框外面：不关窗口
+
+// 对话框开着时 Tab 只在对话框里转
+function trapTab(e, box) {
+  const items = [...box.querySelectorAll('input, select, button:not(:disabled):not([tabindex="-1"]), [tabindex="0"]')]
+    .filter(el => el.offsetParent !== null && !(el.type === 'radio' && !el.checked));
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1], cur = document.activeElement;
+  if (!box.contains(cur)) { e.preventDefault(); first.focus(); }
+  else if (e.shiftKey && (cur === first || cur === box.firstElementChild)) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && cur === last) { e.preventDefault(); first.focus(); }
+}
+
+// ------------------------------------------------------------ 语言菜单
+$('btnLang').innerHTML = ICON.globe + '<span>' + (EN ? 'English' : '中文') + '</span>';
+function closeLang() { $('langMenu').hidden = true; }
+$('btnLang').onclick = () => {
+  const menu = $('langMenu');
+  if (!menu.hidden) { closeLang(); return; }
+  menu.hidden = false;
+  const r = $('btnLang').getBoundingClientRect();
+  menu.style.top = (r.bottom + 4) + 'px';
+  menu.style.left = clamp(r.right - menu.offsetWidth, 8, innerWidth - menu.offsetWidth - 8) + 'px';
+};
+for (const b of $('langMenu').querySelectorAll('button')) {
+  b.classList.toggle('on', b.dataset.lang === LANG);
+  b.onclick = async () => {
+    closeLang();
+    if (b.dataset.lang === LANG) return;
+    try {
+      await api('/api/settings', { lang: b.dataset.lang });
+      location.reload();                     // 重新载入页面，后台会按新语言给出页面和提示
+    } catch (e) { fail(e); }
+  };
+}
+
+// ------------------------------------------------------------ 事件绑定
+$('btnBack').innerHTML = ICON.back;
+$('btnFolder').innerHTML = ICON.folder + '<span>' + tr('打开文件夹', 'Open folder') + '</span>';
+$('btnSetup').innerHTML = ICON.settings + '<span>' + tr('录制设置', 'Recording settings') + '</span>';
+$('slAdd').innerHTML = ICON.add + tr('添加', 'Add');
+$('btnSlots').innerHTML = ICON.edit + tr('编辑', 'Edit');
+$('btnSlots').setAttribute('aria-label', $('btnSlots').title);      // 读屏时念全称，不只是"编辑"
+$('btnReveal').innerHTML = ICON.folder + tr('在文件夹中显示', 'Show in folder');
+$('btnDelete').innerHTML = ICON.trash + tr('删除', 'Delete');
+$('verrIco').innerHTML = ICON.warn;
+$('zoomIn').innerHTML = ICON.zoomIn;
+$('zoomOut').innerHTML = ICON.zoomOut;
+
+$('btnBack').onclick = goHome;
+$('btnSetup').onclick = () => openSetup().catch(fail);
+$('btnSlots').onclick = () => openSlots($('btnSlots'));
+$('suSlots').onclick = () => openSlots($('suSlots'));
+$('btnStop').onclick = stopRec;
+$('btnFolder').onclick = () => api('/api/openfolder', {}).catch(fail);
+$('btnPlay').onclick = togglePlay;
+$('btnPreview').onclick = preview;
+$('btnExport').onclick = doExport;
+$('btnTrim').onclick = () => setTrim(!S.trim);
+$('btnReveal').onclick = () => S.cur && api('/api/reveal', { f: S.cur }).catch(fail);
+$('btnDelete').onclick = () => S.cur && deleteFile(S.cur);
+document.addEventListener('click', e => {
+  // − + 键平时在按下时就处理了（见上面的 pointerdown）；这里只管用键盘触发的情况
+  const n = e.target.closest('[data-nudge]');
+  if (n && e.detail === 0) { const p = n.dataset.nudge.split(','); nudge(p[0], +p[1], e.shiftKey); }
+  const b = e.target.closest('button');
+  if (b) b.blur();            // 否则之后按空格会再次触发这个按钮
+});
+
+function store(key, val) { try { localStorage.setItem(key, val); } catch (_) { /* 忽略 */ } }
+function load(key) { try { return localStorage.getItem(key); } catch (_) { return null; } }
+
+function renderVol() {
+  $('btnMute').innerHTML = (v.muted || v.volume === 0) ? ICON.mute : ICON.vol;
+  $('vol').style.setProperty('--p', (v.muted ? 0 : v.volume * 100) + '%');
+}
+$('vol').oninput = () => { v.volume = +$('vol').value; v.muted = false; store('vol', v.volume); renderVol(); };
+$('vol').onchange = () => $('vol').blur();
+$('btnMute').onclick = () => { v.muted = !v.muted; renderVol(); };
+// 播放速度：一排直接点选的按钮
+function renderSpeed() {
+  const box = $('speed');
+  box.textContent = '';
+  for (const s of [0.5, 1, 2, 4]) {
+    const b = h('button', { class: s === S.speed ? 'on' : '', type: 'button', title: tr(s + ' 倍速', s + '× speed') }, s + '×');
+    b.onclick = () => { S.speed = s; v.playbackRate = s; store('speed', s); renderSpeed(); };
+    box.append(b);
+  }
+}
+$('delSrc').onchange = () => store('delSrc', $('delSrc').checked ? '1' : '0');
+
+document.addEventListener('keydown', e => {
+  if (!$('closeDlg').hidden) {         // "关闭窗口"：Esc 取消，回车确定（方向键换选项是单选框自带的）
+    if (e.key === 'Escape') closeAsk();
+    else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); confirmClose(); }
+    else if (e.key === 'Tab') trapTab(e, $('closeDlg'));
+    return;
+  }
+  if (!$('overlay').hidden) {
+    if (e.key === 'Escape') closeDlg(false);
+    else if (e.key === 'Enter') closeDlg(true);
+    return;
+  }
+  if (!$('langMenu').hidden) { if (e.key === 'Escape') closeLang(); return; }
+  if (!$('slots').hidden) {            // 「时长与快捷键」开着：Esc 关闭，在时长输入框里按回车保存（录入快捷键时的按键由那个输入框自己接走）
+    if (e.key === 'Escape') { if (!E.busy) closeSlots(); }
+    else if (e.key === 'Enter' && e.target instanceof HTMLInputElement) { e.target.blur(); saveSlots(); }
+    else if (e.key === 'Tab') trapTab(e, $('slots'));
+    return;
+  }
+  if (!$('setup').hidden) {            // 录制设置开着：键盘留给里面的控件
+    if (e.key === 'Escape' && !W.busy) closeSetup();
+    else if (e.key === 'Tab') trapTab(e, $('setup'));
+    return;
+  }
+  if (!S.cur || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.target instanceof Element && e.target.matches('input, select, textarea')) return;
+  // 方向键：平时一次 1 秒（按住 Shift 5 秒）；裁剪时一次 1 帧（按住 Shift 1 秒），方便对准画面
+  const fd = frameDur();
+  const step = S.trim ? (e.shiftKey ? 1 : fd) : (e.shiftKey ? 5 : 1);
+  const stepBy = dir => {
+    S.previewing = false;
+    if (S.trim) v.pause();
+    let to = Math.round(curTime() * 100) / 100 + dir * step;
+    if (S.trim) to = Math.round(to / fd) * fd;      // 落在帧的整数倍上，连按多少次都不会走偏
+    seek(to);
+    reveal(clamp(to, 0, S.dur));
+  };
+  switch (e.key) {
+    case ' ': togglePlay(); break;
+    case 'ArrowLeft': stepBy(-1); break;
+    case 'ArrowRight': stepBy(1); break;
+    case 'Home': seek(0); reveal(0); break;
+    case 'End': seek(S.dur); reveal(S.dur); break;
+    case '+': case '=': zoomAt(viewAnchor(), 2); break;
+    case '-': case '_': zoomAt(viewAnchor(), 0.5); break;
+    case '0': setView(0, S.dur); break;
+    case 'i': case 'I': setIn(); break;
+    case 'o': case 'O': setOut(); break;
+    case 'Escape': if (S.trim) setTrim(false); else goHome(); break;
+    default: return;
+  }
+  e.preventDefault();
+});
+
+// ------------------------------------------------------------ 窗口（没有系统标题栏时）
+// 程序自己的窗口里，页面右上角的三个键代替系统的最小化 / 最大化 / 关闭；顶部那一条可以拖动窗口。
+const CAP = {
+  max: '<svg viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1" fill="none"/></svg>',
+  restore: '<svg viewBox="0 0 10 10"><rect x=".5" y="2.5" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1" fill="none"/><path d="M2.5 2.5V1.5a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1h-1" stroke="currentColor" stroke-width="1" fill="none"/></svg>',
+};
+const HOST = (window.chrome && window.chrome.webview) ? (window.__host || { frameless: true, nativeDrag: false }) : null;
+if (HOST) {
+  const send = m => window.chrome.webview.postMessage(m);
+  const setMax = on => { $('capMax').innerHTML = on ? CAP.restore : CAP.max; $('capMax').title = on ? tr('向下还原', 'Restore down') : tr('最大化', 'Maximize'); };
+  document.body.classList.add('frameless');
+  $('wincap').hidden = false;
+  setMax(!!HOST.maximized);
+  $('capMin').onclick = () => send('min');
+  $('capMax').onclick = () => send('max');
+  $('capClose').onclick = () => send('close');
+  window.chrome.webview.addEventListener('message', e => {
+    if (e.data === 'maximized') setMax(true);
+    else if (e.data === 'normal') setMax(false);
+    else if (e.data === 'refresh') refresh();                          // 按快捷键或从托盘菜单保存：开始和结束时各来一次
+    else if (typeof e.data === 'string' && e.data.startsWith('saving:')) saveProgress(parseFloat(e.data.slice(7)));      // 存得久时的进度
+    else if (e.data === 'hidden') { v.pause(); stopRecording(); }      // 窗口收进了托盘
+    else if (e.data === 'askclose') askClose();                        // 点了关闭，而设置是"每次询问"
+  });
+  if (!HOST.nativeDrag) {
+    // 旧版系统组件不认 app-region，改为自己通知窗口开始拖动
+    $('appbar').addEventListener('mousedown', e => { if (e.button === 0 && !e.target.closest('button')) send('drag'); });
+    $('appbar').addEventListener('dblclick', e => { if (!e.target.closest('button')) send('max'); });
+  }
+}
+window.addEventListener('blur', () => document.body.classList.add('inactive'));
+window.addEventListener('focus', () => document.body.classList.remove('inactive'));
+
+// ------------------------------------------------------------ 启动
+const savedVol = parseFloat(load('vol'));
+if (savedVol >= 0 && savedVol <= 1) { v.volume = savedVol; $('vol').value = savedVol; }
+$('delSrc').checked = load('delSrc') === '1';
+const savedSpeed = parseFloat(load('speed'));
+if ([0.5, 1, 2, 4].includes(savedSpeed)) S.speed = savedSpeed;
+renderSpeed();
+renderVol();
+renderAll();
+renderCapture();
+renderGrid();
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, 2000);
+setInterval(() => { if (!HOST && !document.hidden && savingNow() !== null) refresh(); }, 400);      // 用浏览器窗口显示时没有人递进度：保存期间问得勤一些
+setInterval(() => { if (document.hidden) fetch(url('/api/ping', {})).catch(() => {}); }, 20000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+requestAnimationFrame(loop);
+
+// 给自动化测试用
+window.__app = { S, W, EN, seek, setIn, setOut, setTrim, setView, zoomAt, doExport, openFile, goHome, refresh, openSetup, applySetup, saveRecent, saveProgress, renderCapture, renderSetup, parseName, notify, deleteFile, capState, E, openSlots, closeSlots, saveSlots, addSlot, startRec, stopRec, askClose, closeSetup, cards };
+})();
+</script>
+</body>
+</html>
