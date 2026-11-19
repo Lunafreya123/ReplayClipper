@@ -4,7 +4,10 @@
 
 # Replay Clipper
 
-A replay recorder for Windows games. It records the screen in the background, and a hotkey saves the last few minutes as a video, much like the "save recent gameplay" feature of a game console.
+**Pulled off something great and weren't recording? Replay Clipper was.**
+
+It keeps recording in the background while you play. When something worth keeping happens, press `Alt + F7` and the last 3 minutes are saved.<br>
+Think of the "save recent gameplay" button on a console, only for Windows.
 
 [![Download](https://img.shields.io/github/v/release/Lunafreya123/ReplayClipper?label=download&color=4cc2ff)](https://github.com/Lunafreya123/ReplayClipper/releases/latest)
 ![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
@@ -16,56 +19,56 @@ A replay recorder for Windows games. It records the screen in the background, an
 
 <p align="center"><img src="docs/images/home-en.webp" alt="Replay Clipper home page"></p>
 
-## Features
+## What it does
 
 ### Recording
-- Records the selected display and the system sound in the background, optionally the microphone as well.
-- Replay length of 15 min, 30 min, 1 h or 2 h, or a custom length of 1 to 720 minutes. Footage older than that is deleted automatically.
-- The replay buffer is kept on disk. Recording settings show how much space the current resolution, frame rate and replay length need. Recording stops when less than 1 GB of disk space is left.
-- Uses the GPU's hardware encoder (NVIDIA NVENC, AMD AMF, Intel Quick Sync) in H.265 or H.264. Without a usable hardware encoder it falls back to software encoding, and Recording settings say so.
-- Resolution of 1080p, 1440p or the display's native resolution, at 60 or 30 fps.
+- Records the screen you pick, together with the game sound. Want your voice on it too? Turn on the microphone.
+- Keep anything from the last 15 minutes up to the last 12 hours. Older footage is deleted as it goes, so it never piles up.
+- The buffer lives on your disk, and Recording settings show how much space it will take before you commit. If the disk gets down to its last 1 GB, recording stops by itself instead of filling it up.
+- Encodes on the GPU (NVIDIA NVENC, AMD AMF, Intel Quick Sync), in H.265 or H.264. It only falls back to CPU encoding when there is no hardware encoder at all; that costs frames, and the settings will tell you.
+- 1080p, 1440p or your screen's native resolution, at 60 or 30 fps.
 
 ### Saving
-- Up to five save lengths on the home page, 3, 5, 15 and 30 minutes by default. Each length can be changed and given its own hotkey.
-- The hotkeys also work inside games. A small notice appears in the top-right corner while saving, and a sound plays when the clip is done.
-- A save joins the recorded segments without re-encoding, so the quality stays the same. On the development PC (NVMe SSD), saving 5 minutes takes about 0.2 s and 30 minutes about 1 s.
+- Five save buttons on the home page, 3, 5, 15 and 30 minutes out of the box. Change the lengths and the hotkeys to whatever suits your hands.
+- Press the hotkey right in the game, no alt-tabbing. A small notice pops up in the corner and a chime tells you it's saved.
+- Nothing is re-encoded, so the clip looks exactly like the recording. On my own PC (NVMe SSD) saving 5 minutes takes about 0.2 s and 30 minutes about 1 s, which is to say: it's done by the time you let go of the key.
 
-### Playback and trimming
-- The clip list shows thumbnails. Playback speed of 0.5×, 1×, 2× or 4×.
-- Frame-accurate trimming: zoom the timeline with the mouse wheel, set start and end with I and O, and adjust by single frames. Export does not re-encode.
+### Watching and trimming
+- The clip list has thumbnails. Slow down to 0.5× to see what really happened, or speed up to 4× through the boring bits.
+- Trim to the exact frame: zoom the timeline with the mouse wheel, mark start and end with I and O, then nudge frame by frame. Export doesn't re-encode either.
 
-### Running in the background
-- When you close the window, you can choose to keep it running in the background or exit, and tick "Don't ask again".
-- In the background, the app shows an icon in the notification area. Its menu can save clips and start or stop recording.
-- It can start with Windows and record in the background.
+### After you close the window
+- Clicking × asks whether to keep running in the background or quit. Tired of the question? Tick "Don't ask again".
+- In the background it sits in the notification area; its menu can save clips and turn recording on or off.
+- Let it start with Windows and begin recording on its own, and you never have to think about it again.
 
-### Other
-- No OBS installation is needed. The recorder uses the core libraries of OBS Studio, which are included in the installer.
-- Interface in Chinese or English.
-- Installs without administrator rights. Uninstalling removes the program, its settings and the replay buffer; saved clips are kept.
+### Also
+- No need to install OBS. The recorder uses OBS Studio's core libraries, which come with the installer.
+- Chinese or English interface, switchable from the top-right corner.
+- No administrator rights needed to install. Uninstalling removes the program, its settings and the buffer, and leaves every clip you saved alone.
 
 ## Screenshots
 
 <table>
 <tr>
-<td width="50%"><img src="docs/images/slots-en.webp" alt="Save lengths and hotkeys"><p align="center">Save lengths and hotkeys</p></td>
-<td width="50%"><img src="docs/images/settings-en.webp" alt="Recording settings"><p align="center">Recording settings</p></td>
+<td width="50%"><img src="docs/images/slots-en.webp" alt="Save lengths and hotkeys"><p align="center">Lengths and hotkeys the way you like them</p></td>
+<td width="50%"><img src="docs/images/settings-en.webp" alt="Recording settings"><p align="center">Recording settings, disk use at a glance</p></td>
 </tr>
 </table>
 
-<p align="center"><img src="docs/images/trim-en.webp" alt="Playback and trimming"><br>Playback and trimming</p>
+<p align="center"><img src="docs/images/trim-en.webp" alt="Playback and trimming"><br>Slow motion and frame-accurate trimming to cut out the highlight</p>
 
 ## Installation
 
-1. Download `ReplayClipper-Setup-x.y.z.exe` from the [Releases](https://github.com/Lunafreya123/ReplayClipper/releases/latest) page.
-2. Run it. The installer is not code-signed, so Windows may show "Windows protected your PC". In that case select "More info", then "Run anyway".
-3. On first start, Recording settings opens. Select the display to record, then select "Start recording".
+1. Grab `ReplayClipper-Setup-x.y.z.exe` from [Releases](https://github.com/Lunafreya123/ReplayClipper/releases/latest).
+2. Run it. The installer isn't code-signed yet, so Windows may say "Windows protected your PC". Select "More info", then "Run anyway".
+3. The first time it opens, Recording settings come up. Pick the screen to record and select "Start recording". That's it; from here on it just runs.
 
-Requirements:
+You need:
 
 - Windows 10 or 11, 64-bit
-- WebView2 Runtime (included in Windows 11; on Windows 10 usually installed with Edge)
-- An NVIDIA, AMD or Intel GPU with a hardware video encoder is recommended
+- WebView2 Runtime (built into Windows 11; on Windows 10 it usually came with Edge)
+- Ideally a GPU with a hardware encoder: NVIDIA, AMD and Intel graphics all work
 
 ## Default hotkeys
 
@@ -76,44 +79,44 @@ Requirements:
 | 15 minutes | `Alt + F9` |
 | 30 minutes | `Alt + F10` |
 
-Select "Edit" after the save tiles on the home page to change them (up to five). Function keys can be used on their own; other keys need Ctrl or Alt.
+To change them, select "Edit" after the save buttons on the home page (up to five). Function keys such as F1 to F12 work on their own; other keys need Ctrl or Alt.
 
 ## FAQ
 
-**Why is saving fast?**
-While recording, the footage is written to disk in 2-second segments. A save only joins the segments it needs into an MP4 file; nothing is encoded.
+**Saving is that fast? Is it cutting quality somewhere?**
+No. While recording, the footage already goes to disk in 2-second pieces. Saving just puts the pieces it needs into one MP4, without re-encoding anything.
 
-**Does it lower the game's frame rate?**
-Video encoding is done by the GPU's dedicated encoder. On the development PC the recorder itself uses about 7% of one CPU core. With software encoding (no hardware encoder available) the frame rate drops noticeably.
+**Will it slow my game down?**
+Encoding runs on the GPU's dedicated encoder. On my PC the recorder itself uses about 7% of one CPU core. If your GPU has no hardware encoder and it has to encode on the CPU, though, you will lose frames.
 
-**How much disk space does it use?**
-With the default settings (1080p, 60 fps, about 16 Mbps), a 30-minute replay length takes about 3.5 GB and 1 hour about 7 GB. Recording settings show the figure for your settings.
+**How much disk space does it need?**
+At the default 1080p, 60 fps (about 16 Mbps), keeping 30 minutes takes about 3.5 GB and keeping an hour about 7 GB. Recording settings show the number for your own settings.
 
-**Where are clips saved?**
-In the Replay Clipper folder inside your Videos folder, unless you choose another folder in Recording settings. "Open folder" in the title bar opens it.
+**Where do my clips go?**
+Into a Replay Clipper folder in your Videos folder, unless you pick another one in Recording settings. "Open folder" in the title bar takes you there.
 
-**Does it keep recording after I close the window?**
-If you chose to keep it running in the background, yes, and the hotkeys keep working. Selecting "Exit" in the notification area menu closes the app; footage that was not saved is discarded.
+**Is it still recording after I close the window?**
+If you chose to keep it running in the background, yes, and the hotkeys still work. "Exit" in the tray menu really closes it, and whatever you haven't saved is gone, so save first.
 
-## How it works
+## How saving is so quick
 
 ```mermaid
 flowchart LR
-    A["Display<br>system sound / mic"] --> B["Recorder<br>OBS core + hardware encoder"]
+    A["Screen<br>game sound / mic"] --> B["Recorder<br>OBS core + GPU encoder"]
     B --> C[("Replay buffer on disk<br>2-second segments")]
     C -- "hotkey" --> D["Joined into an MP4<br>no re-encoding"]
-    D --> E["Clip list<br>play / trim"]
+    D --> E["Clip list<br>watch / trim"]
 ```
 
-- **App** (`src/`): written in C#; handles the window, hotkeys and tray icon. The interface is a single web page (`ui/index.html`) shown with WebView2.
-- **Recorder** (`engine/`): a helper program without a window. It uses the core libraries of OBS Studio 33.0.1 to capture video and audio and encode them in hardware, and writes the result to a ring of segments on disk. The app talks to it over a named pipe and restarts it if it exits unexpectedly. Protocol: [`src/engine/PROTOCOL.md`](src/engine/PROTOCOL.md).
-- **Saving**: the app reads the segments and writes the MP4 file itself. On every save, ffmpeg also converts the first segment for comparison, and the two must match byte for byte. If they do not, the whole clip is joined by ffmpeg instead.
+- **The app** (`src/`): written in C#; it owns the window, the hotkeys and the tray icon. The interface is a single web page (`ui/index.html`) shown with WebView2.
+- **The recorder** (`engine/`): a small helper without a window. It uses the core libraries of OBS Studio 33.0.1 to capture picture and sound, encodes them on the GPU and writes them piece by piece into a ring buffer on disk. The app talks to it over a named pipe and brings it straight back if it ever exits unexpectedly. Protocol: [`src/engine/PROTOCOL.md`](src/engine/PROTOCOL.md).
+- **Saving**: the app reads the segments and writes the MP4 itself. To be safe, ffmpeg also converts the first segment on every save, and the two have to match byte for byte. If they don't, ffmpeg joins the whole clip instead: slower, but solid.
 
-## Known limitations
+## Not there yet
 
-- Fully tested only on Windows 11 with an AMD GPU. The NVIDIA and Intel encoder settings follow OBS's recommended values but have not been verified on real hardware. If you run into a problem, please open an [issue](https://github.com/Lunafreya123/ReplayClipper/issues) and attach `data\engine\logs\engine.log`.
-- Exclusive-fullscreen games and HDR have not been tested.
-- AV1 encoding is not supported yet.
+- I have only tested it fully on my own Windows 11 PC with an AMD GPU. The NVIDIA and Intel encoder settings follow OBS's recommendations but haven't run on real hardware yet. If something goes wrong, please open an [issue](https://github.com/Lunafreya123/ReplayClipper/issues); attaching `data\engine\logs\engine.log` helps a lot.
+- Exclusive-fullscreen games and HDR haven't been tested.
+- No AV1 encoding for now.
 
 ## Building
 
