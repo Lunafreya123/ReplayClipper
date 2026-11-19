@@ -4,146 +4,165 @@
 
 # Replay Clipper
 
-**Pulled off something great and weren't recording? Replay Clipper was.**
+Instant replay recorder for Windows games
 
-It keeps recording in the background while you play. When something worth keeping happens, press `Alt + F7` and the last 3 minutes are saved.<br>
-Think of the "save recent gameplay" button on a console, only for Windows.
-
-[![Download](https://img.shields.io/github/v/release/Lunafreya123/ReplayClipper?label=download&color=4cc2ff)](https://github.com/Lunafreya123/ReplayClipper/releases/latest)
-![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
+[![Release](https://img.shields.io/github/v/release/Lunafreya123/ReplayClipper?color=4cc2ff)](https://github.com/Lunafreya123/ReplayClipper/releases/latest)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
 [![License](https://img.shields.io/github/license/Lunafreya123/ReplayClipper)](LICENSE)
 
-[简体中文](README.md) · English
+[Download](https://github.com/Lunafreya123/ReplayClipper/releases/latest) · [Issues](https://github.com/Lunafreya123/ReplayClipper/issues) · [简体中文](README.md)
 
 </div>
 
-<p align="center"><img src="docs/images/home-en.webp" alt="Replay Clipper home page"></p>
+Replay Clipper records the screen continuously in the background and saves the most recent footage as a video file when you press a global hotkey, similar to the "save recent gameplay" feature of game consoles. Recording is built on the core libraries of OBS Studio, and clips are saved by joining the recorded footage without re-encoding.
 
-## What it does
+<p align="center"><img src="docs/images/home-en.webp" alt="Replay Clipper main window"></p>
 
-### Recording
-- Records the screen you pick, together with the game sound. Want your voice on it too? Turn on the microphone.
-- Keep anything from the last 15 minutes up to the last 12 hours. Older footage is deleted as it goes, so it never piles up.
-- The buffer lives on your disk, and Recording settings show how much space it will take before you commit. If the disk gets down to its last 1 GB, recording stops by itself instead of filling it up.
-- Encodes on the GPU (NVIDIA NVENC, AMD AMF, Intel Quick Sync), in H.265 or H.264. It only falls back to CPU encoding when there is no hardware encoder at all; that costs frames, and the settings will tell you.
-- 1080p, 1440p or your screen's native resolution, at 60 or 30 fps.
+## Features
 
-### Saving
-- Five save buttons on the home page, 3, 5, 15 and 30 minutes out of the box. Change the lengths and the hotkeys to whatever suits your hands.
-- Press the hotkey right in the game, no alt-tabbing. A small notice pops up in the corner and a chime tells you it's saved.
-- Nothing is re-encoded, so the clip looks exactly like the recording. On my own PC (NVMe SSD) saving 5 minutes takes about 0.2 s and 30 minutes about 1 s, which is to say: it's done by the time you let go of the key.
-
-### Watching and trimming
-- The clip list has thumbnails. Slow down to 0.5× to see what really happened, or speed up to 4× through the boring bits.
-- Trim to the exact frame: zoom the timeline with the mouse wheel, mark start and end with I and O, then nudge frame by frame. Export doesn't re-encode either.
-
-### After you close the window
-- Clicking × asks whether to keep running in the background or quit. Tired of the question? Tick "Don't ask again".
-- In the background it sits in the notification area; its menu can save clips and turn recording on or off.
-- Let it start with Windows and begin recording on its own, and you never have to think about it again.
-
-### Also
-- No need to install OBS. The recorder uses OBS Studio's core libraries, which come with the installer.
-- Chinese or English interface, switchable from the top-right corner.
-- No administrator rights needed to install. Uninstalling removes the program, its settings and the buffer, and leaves every clip you saved alone.
+- **Continuous background recording**: records the selected display and system audio, optionally the microphone. The replay length can be set from 15 minutes to 12 hours; older footage is discarded automatically.
+- **Hotkey saving**: up to five save lengths (3, 5, 15 and 30 minutes by default), each with its own global hotkey that also works in games.
+- **Fast, lossless saving**: clips are joined from the segments in the disk buffer without re-encoding, so quality is unchanged. A 30-minute clip saves in about one second (see [Performance](#performance)).
+- **Hardware encoding**: NVIDIA NVENC, AMD AMF and Intel Quick Sync, producing H.265 or H.264, with a software fallback when no hardware encoder is available. 1080p, 1440p or native resolution at 60 or 30 fps.
+- **Disk-backed buffer**: the replay buffer is stored on disk. The settings dialog estimates the required space from resolution, frame rate and replay length, and recording stops automatically when less than 1 GB of free space remains.
+- **Playback and trimming**: built-in player with 0.5×–4× speed; frame-accurate trimming, exported without re-encoding.
+- **System tray**: keeps running in the background after the window is closed, with a tray menu and an option to start with Windows.
+- **Self-contained**: the recorder ships with the installer, so OBS does not need to be installed; installation requires no administrator rights.
+- **Bilingual interface**: English and Simplified Chinese.
 
 ## Screenshots
 
 <table>
 <tr>
-<td width="50%"><img src="docs/images/slots-en.webp" alt="Save lengths and hotkeys"><p align="center">Lengths and hotkeys the way you like them</p></td>
-<td width="50%"><img src="docs/images/settings-en.webp" alt="Recording settings"><p align="center">Recording settings, disk use at a glance</p></td>
+<td width="50%"><img src="docs/images/slots-en.webp" alt="Save lengths and hotkeys"><p align="center">Save lengths and hotkeys</p></td>
+<td width="50%"><img src="docs/images/settings-en.webp" alt="Recording settings"><p align="center">Recording settings</p></td>
 </tr>
 </table>
 
-<p align="center"><img src="docs/images/trim-en.webp" alt="Playback and trimming"><br>Slow motion and frame-accurate trimming to cut out the highlight</p>
+<p align="center"><img src="docs/images/trim-en.webp" alt="Playback and trimming"><br>Playback and trimming</p>
 
 ## Installation
 
-1. Grab `ReplayClipper-Setup-x.y.z.exe` from [Releases](https://github.com/Lunafreya123/ReplayClipper/releases/latest).
-2. Run it. The installer isn't code-signed yet, so Windows may say "Windows protected your PC". Select "More info", then "Run anyway".
-3. The first time it opens, Recording settings come up. Pick the screen to record and select "Start recording". That's it; from here on it just runs.
+Download `ReplayClipper-Setup-x.y.z.exe` from the [Releases](https://github.com/Lunafreya123/ReplayClipper/releases/latest) page and run it. It installs to `%LOCALAPPDATA%\Programs\ReplayClipper` by default; the location can be changed during setup.
 
-You need:
+> [!NOTE]
+> The installer is not code-signed. If Windows SmartScreen shows "Windows protected your PC", select "More info", then "Run anyway".
 
-- Windows 10 or 11, 64-bit
-- WebView2 Runtime (built into Windows 11; on Windows 10 it usually came with Edge)
-- Ideally a GPU with a hardware encoder: NVIDIA, AMD and Intel graphics all work
+**Requirements**
 
-## Default hotkeys
+- Windows 10 or Windows 11 (64-bit)
+- WebView2 Runtime (included in Windows 11; on Windows 10 usually installed with Microsoft Edge)
+- An NVIDIA, AMD or Intel GPU with hardware video encoding is recommended
 
-| Save the last | Hotkey |
+## Usage
+
+1. On first start, Recording settings opens. Select the display to record, review the settings and select "Start recording".
+2. Replay Clipper now records in the background. To save a clip, press the corresponding hotkey or select a save length in the main window.
+3. Saved clips appear in the clip list of the main window, where they can be played, trimmed or shown in their folder.
+
+**Default hotkeys**
+
+| Action | Hotkey |
 | --- | --- |
-| 3 minutes | `Alt + F7` |
-| 5 minutes | `Alt + F8` |
-| 15 minutes | `Alt + F9` |
-| 30 minutes | `Alt + F10` |
+| Save the last 3 minutes | `Alt` + `F7` |
+| Save the last 5 minutes | `Alt` + `F8` |
+| Save the last 15 minutes | `Alt` + `F9` |
+| Save the last 30 minutes | `Alt` + `F10` |
 
-To change them, select "Edit" after the save buttons on the home page (up to five). Function keys such as F1 to F12 work on their own; other keys need Ctrl or Alt.
+Select "Edit" after the save lengths in the main window to change lengths and hotkeys. Function keys can be used on their own; other keys must be combined with `Ctrl` or `Alt`.
 
-## FAQ
+**Trimming shortcuts**
 
-**Saving is that fast? Is it cutting quality somewhere?**
-No. While recording, the footage already goes to disk in 2-second pieces. Saving just puts the pieces it needs into one MP4, without re-encoding anything.
+| Key | Action |
+| --- | --- |
+| Mouse wheel | Zoom the timeline around the pointer |
+| `Shift` + mouse wheel | Pan the timeline |
+| `I` / `O` | Set start / end at the current position |
+| `←` / `→` | Back / forward 1 second; 1 frame while trimming |
+| `Space` | Play / pause |
 
-**Will it slow my game down?**
-Encoding runs on the GPU's dedicated encoder. On my PC the recorder itself uses about 7% of one CPU core. If your GPU has no hardware encoder and it has to encode on the CPU, though, you will lose frames.
+**File locations**
 
-**How much disk space does it need?**
-At the default 1080p, 60 fps (about 16 Mbps), keeping 30 minutes takes about 3.5 GB and keeping an hour about 7 GB. Recording settings show the number for your own settings.
+| Content | Default location |
+| --- | --- |
+| Saved clips | `Videos\Replay Clipper`, configurable in Recording settings |
+| Replay buffer | `data\buffer` in the program folder, configurable in Recording settings |
+| Settings and logs | `data` in the program folder |
 
-**Where do my clips go?**
-Into a Replay Clipper folder in your Videos folder, unless you pick another one in Recording settings. "Open folder" in the title bar takes you there.
+## Performance
 
-**Is it still recording after I close the window?**
-If you chose to keep it running in the background, yes, and the hotkeys still work. "Exit" in the tray menu really closes it, and whatever you haven't saved is gone, so save first.
+To save a clip, Replay Clipper reads the MPEG-TS segments from the buffer and writes the MP4 file directly, so the time taken depends mainly on disk throughput. The table compares saving times with joining the same footage using ffmpeg:
 
-## How saving is so quick
+| Clip length | Replay Clipper | ffmpeg join |
+| --- | ---: | ---: |
+| 5 minutes | ~0.2 s | ~1 s |
+| 30 minutes | ~0.9 s | ~5 s |
+| 60 minutes | ~2 s | ~10 s |
+
+Test system: Windows 11, AMD GPU (AMF H.265), NVMe SSD, 1080p at 60 fps, about 16 Mbps. While recording, the recorder uses about 7% of one CPU core.
+
+## Architecture
 
 ```mermaid
 flowchart LR
-    A["Screen<br>game sound / mic"] --> B["Recorder<br>OBS core + GPU encoder"]
-    B --> C[("Replay buffer on disk<br>2-second segments")]
-    C -- "hotkey" --> D["Joined into an MP4<br>no re-encoding"]
-    D --> E["Clip list<br>watch / trim"]
+    A["Display<br>system audio / mic"] --> B["Recorder<br>libobs + hardware encoder"]
+    B --> C[("Ring buffer on disk<br>2-second MPEG-TS segments")]
+    C -- "save" --> D["MP4 writer<br>no re-encoding"]
+    D --> E["Clip library<br>play / trim"]
 ```
 
-- **The app** (`src/`): written in C#; it owns the window, the hotkeys and the tray icon. The interface is a single web page (`ui/index.html`) shown with WebView2.
-- **The recorder** (`engine/`): a small helper without a window. It uses the core libraries of OBS Studio 33.0.1 to capture picture and sound, encodes them on the GPU and writes them piece by piece into a ring buffer on disk. The app talks to it over a named pipe and brings it straight back if it ever exits unexpectedly. Protocol: [`src/engine/PROTOCOL.md`](src/engine/PROTOCOL.md).
-- **Saving**: the app reads the segments and writes the MP4 itself. To be safe, ffmpeg also converts the first segment on every save, and the two have to match byte for byte. If they don't, ffmpeg joins the whole clip instead: slower, but solid.
+| Component | Path | Description |
+| --- | --- | --- |
+| Application | `src/` | C# (.NET Framework 4.x). Window, global hotkeys, tray icon, local HTTP interface and MP4 writer |
+| User interface | `ui/index.html` | Single-file web UI hosted in WebView2 |
+| Recorder | `src/engine/` | Headless helper process that uses libobs from OBS Studio 33.0.1 for capture and encoding and writes a ring buffer on disk. Talks to the application over a named pipe ([protocol](src/engine/PROTOCOL.md)) and is restarted automatically if it exits unexpectedly |
+| ffmpeg | `ffmpeg/` | Minimal build of FFmpeg 9.0.2 for save verification, fallback joining, trimming, media information and thumbnails |
+| Installer | `installer/` | Inno Setup 6 |
 
-## Not there yet
+On every save, ffmpeg also converts the first segment of the clip as a reference. The application's output is used only if it matches that reference byte for byte; otherwise the whole clip is joined by ffmpeg instead.
 
-- I have only tested it fully on my own Windows 11 PC with an AMD GPU. The NVIDIA and Intel encoder settings follow OBS's recommendations but haven't run on real hardware yet. If something goes wrong, please open an [issue](https://github.com/Lunafreya123/ReplayClipper/issues); attaching `data\engine\logs\engine.log` helps a lot.
-- Exclusive-fullscreen games and HDR haven't been tested.
-- No AV1 encoding for now.
+## Known issues
+
+- Fully tested only on Windows 11 with an AMD GPU. The NVIDIA and Intel encoder settings follow OBS's recommended values but have not been verified on real hardware.
+- Exclusive-fullscreen games and HDR output have not been tested.
+- AV1 encoding is not supported yet.
 
 ## Building
 
-Everything compiles with the C# compiler that ships with Windows (.NET Framework 4.x, C# 5); Visual Studio is not needed. The binary dependencies are not in the repository. Put them in these folders first:
+The project compiles with the C# compiler included in Windows (.NET Framework 4.x); Visual Studio is not required. Binary dependencies are not stored in the repository. Place them in the following folders first:
 
 | Folder | Files | Source |
 | --- | --- | --- |
 | repository root | `Microsoft.Web.WebView2.Core.dll`, `Microsoft.Web.WebView2.WinForms.dll`, `WebView2Loader.dll` | NuGet package [Microsoft.Web.WebView2](https://www.nuget.org/packages/Microsoft.Web.WebView2) 1.0.2903.40 (folders `lib\` and `runtimes\win-x64\native\`) |
-| `engine\bin\64bit\` | `obs.dll` and the other files listed under `bin/64bit/` in [`engine/licenses/FILES.sha256.txt`](engine/licenses/FILES.sha256.txt) | the official Windows x64 build of [OBS Studio 33.0.1](https://github.com/obsproject/obs-studio/releases/tag/33.0.1), folder `bin\64bit` |
-| `engine\core\<name>\` | `<name>.dll` for win-capture, win-wasapi, obs-ffmpeg, obs-x264, obs-nvenc and obs-qsv11 | the same OBS build, folder `obs-plugins\64bit` |
-| `engine\data\libobs\` | the `*.effect` files | the same OBS build, folder `data\libobs` |
-| `ffmpeg\` | `ffmpeg.exe` (FFmpeg 9.0.2) | built with [`tools/ffmpeg/build-ffmpeg.sh`](tools/ffmpeg/build-ffmpeg.sh), see [`ffmpeg/README.txt`](ffmpeg/README.txt) |
+| `engine\bin\64bit\` | `obs.dll` and the other files listed under `bin/64bit/` in [`engine/licenses/FILES.sha256.txt`](engine/licenses/FILES.sha256.txt) | official Windows x64 build of [OBS Studio 33.0.1](https://github.com/obsproject/obs-studio/releases/tag/33.0.1), folder `bin\64bit` |
+| `engine\core\<name>\` | `<name>.dll` for win-capture, win-wasapi, obs-ffmpeg, obs-x264, obs-nvenc and obs-qsv11 | same OBS build, folder `obs-plugins\64bit` |
+| `engine\data\libobs\` | `*.effect` files | same OBS build, folder `data\libobs` |
+| `ffmpeg\` | `ffmpeg.exe` (FFmpeg 9.0.2) | built with [`tools/ffmpeg/build-ffmpeg.sh`](tools/ffmpeg/build-ffmpeg.sh); see [`ffmpeg/README.txt`](ffmpeg/README.txt) |
 
-Copy the OBS files unchanged and check them against `FILES.sha256.txt`. Do not copy any plugin data folders; without them OBS makes no network requests.
-
-Then:
+Copy the OBS files unchanged and verify them against `FILES.sha256.txt`. Do not copy any plugin data folders; without them OBS makes no network requests.
 
 ```bat
-build.cmd                         :: ReplayClipper.exe, Uninstall.exe, engine\bin\64bit\ReplayClipperEngine.exe
-installer\build-installer.cmd     :: dist\ReplayClipper-Setup-<version>.exe (needs Inno Setup 6 in tools\innosetup or %ISCC%)
+build.cmd                       :: builds ReplayClipper.exe, Uninstall.exe and the recorder
+installer\build-installer.cmd   :: builds dist\ReplayClipper-Setup-<version>.exe (requires Inno Setup 6)
 ```
 
-Close any copy of the app that runs from this folder first. The app can also run directly from the repository folder; it then keeps its settings in `data\`. `tools/engine-tools/` contains test tools for the recorder and the save path.
+Inno Setup is expected in `tools\innosetup`, or set `ISCC` to the path of `ISCC.exe`. Close any copy of the application running from the repository folder before building. The application can run directly from the repository folder and then stores its settings in `data\`. Test tools for the recorder and the save path are in [`tools/engine-tools/`](tools/engine-tools/README.md).
+
+## Contributing
+
+Bug reports and suggestions are welcome in [Issues](https://github.com/Lunafreya123/ReplayClipper/issues), and pull requests are welcome too. When reporting a recording problem, please include your Windows version and GPU model, and attach `data\engine\logs\engine.log`.
 
 ## License
 
-[GPL-3.0](LICENSE). The recorder helper (`src/engine/`) is GPL-2.0-or-later.
-Versions, licenses and source locations of the bundled third-party components (OBS Studio core libraries, FFmpeg and others) are listed in [`engine/licenses/THIRD-PARTY-NOTICES.txt`](engine/licenses/THIRD-PARTY-NOTICES.txt) and [`ffmpeg/README.txt`](ffmpeg/README.txt).
+Replay Clipper is licensed under the [GPL-3.0](LICENSE). The recorder (`src/engine/`) is licensed under GPL-2.0-or-later.
 
-"OBS" and "OBS Studio" are trademarks of their respective owners. Replay Clipper is not affiliated with or endorsed by the OBS Project.
+Versions, licenses and source locations of third-party components are listed in [`engine/licenses/THIRD-PARTY-NOTICES.txt`](engine/licenses/THIRD-PARTY-NOTICES.txt) and [`ffmpeg/README.txt`](ffmpeg/README.txt).
+
+## Acknowledgements
+
+- [OBS Studio](https://obsproject.com/): libobs and the plugins used by the recorder
+- [FFmpeg](https://ffmpeg.org/): save verification, trimming and thumbnails
+- [Microsoft WebView2](https://developer.microsoft.com/microsoft-edge/webview2/): user interface
+- [Inno Setup](https://jrsoftware.org/isinfo.php): installer
+
+"OBS" and "OBS Studio" are trademarks of their respective owners. This project is not affiliated with or endorsed by the OBS Project.

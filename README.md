@@ -4,127 +4,153 @@
 
 # Replay Clipper
 
-**刚才那波操作，现在存还来得及。**
+Windows 平台的游戏回放录制工具
 
-它一直在后台帮你录着，你只管玩。打出好操作了，按一下 `Alt + F7`，刚才那 3 分钟就存好了。<br>
-用法跟游戏主机上的「保存最近的游戏画面」差不多，只不过这个是给 Windows 用的。
+[![Release](https://img.shields.io/github/v/release/Lunafreya123/ReplayClipper?color=4cc2ff)](https://github.com/Lunafreya123/ReplayClipper/releases/latest)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
+[![License](https://img.shields.io/github/license/Lunafreya123/ReplayClipper)](LICENSE)
 
-[![下载](https://img.shields.io/github/v/release/Lunafreya123/ReplayClipper?label=%E4%B8%8B%E8%BD%BD&color=4cc2ff)](https://github.com/Lunafreya123/ReplayClipper/releases/latest)
-![Windows 10 | 11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)
-[![许可证](https://img.shields.io/github/license/Lunafreya123/ReplayClipper?label=%E8%AE%B8%E5%8F%AF%E8%AF%81)](LICENSE)
-
-简体中文 · [English](README.en.md)
+[下载](https://github.com/Lunafreya123/ReplayClipper/releases/latest) · [问题反馈](https://github.com/Lunafreya123/ReplayClipper/issues) · [English](README.en.md)
 
 </div>
 
-<p align="center"><img src="docs/images/home-zh.webp" alt="Replay Clipper 首页"></p>
+Replay Clipper 在后台持续录制屏幕，并通过全局快捷键将最近一段时间的画面保存为视频文件，功能与游戏主机上的“保存最近的游戏画面”类似。录制基于 OBS Studio 的核心库，保存时直接拼接已录制的内容，不重新编码。
 
-## 能做什么
+<p align="center"><img src="docs/images/home-zh.webp" alt="Replay Clipper 主界面"></p>
 
-### 录制
-- 在后台录你选的那块屏幕，连同游戏声音。想把自己的声音也录进去，打开麦克风就行。
-- 回放时长从 15 分钟到 12 小时随便设。它只留最近这一段，更早的自动删掉，不会越录越多。
-- 缓存放在硬盘上，要占多少空间设置里直接算给你看。硬盘只剩不到 1 GB 时它会自己停下，不会把你的盘塞满。
-- 用显卡的硬件编码录（N 卡 NVENC、A 卡 AMF、Intel Quick Sync），H.265 和 H.264 都支持。只有实在没有硬件编码器时才会用 CPU 软编，那样会掉帧，设置里也会提醒你。
-- 分辨率可选 1080p、1440p 或屏幕原生分辨率，帧率 60 或 30。
+## 特性
 
-### 保存
-- 首页放了 5 个保存按钮，默认是 3、5、15、30 分钟。时长和快捷键都能改成你顺手的。
-- 快捷键在游戏里直接按，不用切出去。右上角弹个小提示，“叮”一声就存好了。
-- 不重新编码，画质跟录的时候一模一样。在我自己的电脑上（NVMe 固态硬盘），存 5 分钟大约 0.2 秒，存 30 分钟大约 1 秒，基本是按下去就好了。
-
-### 回看和剪辑
-- 片段列表带缩略图。可以 0.5× 慢放抠细节，也可以 4× 快进跳过跑图。
-- 剪辑能精确到某一帧：滚轮放大时间轴，按 I / O 标好起点和终点，再一帧一帧地微调。导出同样不重新编码，画质不打折。
-
-### 关掉窗口以后
-- 点 × 时会问你是挂后台还是直接退出。嫌烦的话勾上「不再提醒」。
-- 挂后台时它待在任务栏右下角的托盘里，右键菜单里也能直接保存、开关录制。
-- 还可以让它开机自启、自动开录，以后就完全不用管了。
-
-### 其他
-- 不用另外装 OBS。录制用的是 OBS Studio 的核心库，已经打包在安装包里了。
-- 中文 / English 界面，右上角随时切换。
-- 安装不需要管理员权限。卸载时会把程序、设置和缓存清干净，你录好的片段一个都不会动。
+- **后台持续录制**：录制所选显示器的画面与系统声音，可选同时录制麦克风。回放时长可设为 15 分钟至 12 小时，超出部分自动删除。
+- **快捷键保存**：最多 5 个保存时长（默认 3、5、15、30 分钟），每个时长可单独绑定全局快捷键，在游戏中可直接使用。
+- **无损、快速保存**：保存时直接拼接磁盘缓存中的分段，不重新编码，画质与录制时一致。保存 30 分钟的片段约需 1 秒（见[性能](#性能)）。
+- **硬件编码**：支持 NVIDIA NVENC、AMD AMF 与 Intel Quick Sync，输出 H.265 或 H.264；没有可用的硬件编码器时回退至软件编码。分辨率可选 1080p、1440p 或原始分辨率，帧率可选 60 或 30 fps。
+- **磁盘缓存**：回放缓存存放在磁盘上，设置界面按分辨率、帧率与回放时长估算所需空间；磁盘剩余空间低于 1 GB 时自动停止录制。
+- **播放与剪辑**：内置播放器，支持 0.5×–4× 变速；剪辑可精确到帧，导出时不重新编码。
+- **系统托盘**：关闭窗口后可继续在后台运行，支持托盘菜单操作与开机自启。
+- **独立运行**：录制组件随安装包提供，无需安装 OBS；安装无需管理员权限。
+- **双语界面**：简体中文与 English。
 
 ## 截图
 
 <table>
 <tr>
-<td width="50%"><img src="docs/images/slots-zh.webp" alt="时长与快捷键"><p align="center">时长和快捷键，改成你顺手的</p></td>
-<td width="50%"><img src="docs/images/settings-zh.webp" alt="录制设置"><p align="center">录制设置，占多少硬盘一眼就能看到</p></td>
+<td width="50%"><img src="docs/images/slots-zh.webp" alt="时长与快捷键"><p align="center">时长与快捷键</p></td>
+<td width="50%"><img src="docs/images/settings-zh.webp" alt="录制设置"><p align="center">录制设置</p></td>
 </tr>
 </table>
 
-<p align="center"><img src="docs/images/trim-zh.webp" alt="播放与裁剪"><br>慢放、逐帧剪辑，把高光单独切出来</p>
+<p align="center"><img src="docs/images/trim-zh.webp" alt="播放与剪辑"><br>播放与剪辑</p>
 
 ## 安装
 
-1. 去 [Releases](https://github.com/Lunafreya123/ReplayClipper/releases/latest) 下载 `ReplayClipper-Setup-x.y.z.exe`。
-2. 双击安装。安装包暂时没有数字签名，Windows 可能会弹出「Windows 已保护你的电脑」，点「更多信息」，再点「仍要运行」就行。
-3. 第一次打开会弹出「录制设置」。选好要录的屏幕，点「开始录制」，之后就不用管它了。
+从 [Releases](https://github.com/Lunafreya123/ReplayClipper/releases/latest) 页面下载 `ReplayClipper-Setup-x.y.z.exe` 并运行。默认安装到 `%LOCALAPPDATA%\Programs\ReplayClipper`，可在安装时更改。
 
-需要：
+> [!NOTE]
+> 安装程序未进行代码签名。如果 Windows SmartScreen 显示“Windows 已保护你的电脑”，请选择“更多信息”→“仍要运行”。
 
-- Windows 10 或 11（64 位）
-- WebView2 运行时（Windows 11 自带，Windows 10 一般装 Edge 时就有了）
-- 最好有一块支持硬件编码的显卡，N 卡、A 卡、Intel 核显都可以
+**系统要求**
 
-## 默认快捷键
+- Windows 10 或 Windows 11（64 位）
+- WebView2 运行时（Windows 11 已内置；Windows 10 通常随 Microsoft Edge 安装）
+- 推荐使用支持硬件编码的 NVIDIA、AMD 或 Intel 显卡
 
-| 保存最近 | 快捷键 |
+## 使用
+
+1. 首次启动时会打开“录制设置”。选择要录制的显示器并确认各项设置，然后选择“开始录制”。
+2. 程序随后在后台持续录制。需要保存时，按下对应的快捷键，或在主界面选择保存时长。
+3. 保存的片段显示在主界面的片段列表中，可直接播放、剪辑或在文件夹中打开。
+
+**默认快捷键**
+
+| 操作 | 快捷键 |
 | --- | --- |
-| 3 分钟 | `Alt + F7` |
-| 5 分钟 | `Alt + F8` |
-| 15 分钟 | `Alt + F9` |
-| 30 分钟 | `Alt + F10` |
+| 保存最近 3 分钟 | `Alt` + `F7` |
+| 保存最近 5 分钟 | `Alt` + `F8` |
+| 保存最近 15 分钟 | `Alt` + `F9` |
+| 保存最近 30 分钟 | `Alt` + `F10` |
 
-想改的话，点首页时长按钮后面的「编辑」，最多可以设 5 个。F1 到 F12 这类功能键可以单独用，其他键得配上 Ctrl 或 Alt。
+在主界面选择保存时长后面的“编辑”，可修改时长与快捷键。功能键可单独使用，其他按键需与 `Ctrl` 或 `Alt` 组合。
 
-## 常见问题
+**剪辑快捷键**
 
-**存得这么快，是不是偷偷压了画质？**
-没有。录的时候画面就已经按每 2 秒一段存进硬盘了，保存只是把需要的那几段拼成一个 MP4，全程不重新编码。
+| 按键 | 作用 |
+| --- | --- |
+| 鼠标滚轮 | 以指针位置为中心缩放时间轴 |
+| `Shift` + 鼠标滚轮 | 平移时间轴 |
+| `I` / `O` | 将当前位置设为起点 / 终点 |
+| `←` / `→` | 后退 / 前进 1 秒；剪辑时为 1 帧 |
+| `Space` | 播放 / 暂停 |
 
-**会不会卡游戏？**
-编码交给显卡里专门干这个的编码单元。在我电脑上，录制组件本身只占一个 CPU 核心的 7% 左右。不过如果显卡没有硬件编码、只能用 CPU 软编，那就会明显掉帧了。
+**文件位置**
 
-**要占多大硬盘？**
-按默认设置（1080p、60 帧，约 16 Mbps）算，留 30 分钟大概要 3.5 GB，留 1 小时大概 7 GB。你自己的设置要多少，「录制设置」里会直接显示。
+| 内容 | 默认位置 |
+| --- | --- |
+| 保存的片段 | `视频\Replay Clipper`，可在“录制设置”中更改 |
+| 回放缓存 | 程序目录下的 `data\buffer`，可在“录制设置”中更改 |
+| 设置与日志 | 程序目录下的 `data` |
 
-**录好的视频在哪？**
-默认在「视频」文件夹下的 Replay Clipper 里，也可以在「录制设置」里换个地方。标题栏的「打开文件夹」点一下就到。
+## 性能
 
-**关了窗口还在录吗？**
-选了挂后台就还在录，快捷键照样能用。从托盘菜单点「退出」才是真的关掉，这时还没保存的画面就没了，所以退出前记得先存。
+保存片段时，Replay Clipper 直接读取缓存中的 MPEG-TS 分段并写出 MP4 文件，耗时主要取决于磁盘读写速度。下表为不同长度片段的保存耗时，并与使用 ffmpeg 拼接相同内容进行对比：
 
-## 它是怎么做到秒存的
+| 片段长度 | Replay Clipper | ffmpeg 拼接 |
+| --- | ---: | ---: |
+| 5 分钟 | 约 0.2 秒 | 约 1 秒 |
+| 30 分钟 | 约 0.9 秒 | 约 5 秒 |
+| 60 分钟 | 约 2 秒 | 约 10 秒 |
+
+测试环境：Windows 11，AMD 显卡（AMF H.265），NVMe SSD，1080p 60 fps，码率约 16 Mbps。录制期间，录制组件约占用单个 CPU 核心的 7%。
+
+## 架构
 
 ```mermaid
 flowchart LR
-    A["屏幕画面<br>游戏声音 / 麦克风"] --> B["录制组件<br>OBS 核心库 + 显卡编码"]
-    B --> C[("硬盘上的回放缓存<br>每 2 秒一段")]
-    C -- "按下快捷键" --> D["直接拼成 MP4<br>不重新编码"]
-    D --> E["片段列表<br>回看 / 剪辑"]
+    A["显示器<br>系统声音 / 麦克风"] --> B["录制组件<br>libobs + 硬件编码"]
+    B --> C[("磁盘环形缓存<br>2 秒 MPEG-TS 分段")]
+    C -- "保存" --> D["MP4 写入<br>不重新编码"]
+    D --> E["片段库<br>播放 / 剪辑"]
 ```
 
-- **程序本体**（`src/`）：用 C# 写的，管窗口、快捷键和托盘图标。界面是一个网页文件（`ui/index.html`），用 WebView2 显示。
-- **录制组件**（`engine/`）：一个没有窗口的小程序，调用 OBS Studio 33.0.1 的核心库来录画面和声音、用显卡编码，然后一段一段地写进硬盘上的循环缓存。程序跟它通过命名管道说话，它要是意外退出了，程序会马上把它拉起来。通信协议写在 [`src/engine/PROTOCOL.md`](src/engine/PROTOCOL.md)。
-- **保存**：程序自己读缓存里的分段，直接写出 MP4。为了保险，每次保存还会让 ffmpeg 转一遍第一段做对照，两边必须逐字节一致才用；对不上就换 ffmpeg 来拼整个片段，慢一点，但稳。
+| 组件 | 路径 | 说明 |
+| --- | --- | --- |
+| 应用程序 | `src/` | C#（.NET Framework 4.x）。负责窗口、全局快捷键、托盘图标、本地 HTTP 接口与 MP4 写入 |
+| 用户界面 | `ui/index.html` | 单文件 Web 界面，通过 WebView2 显示 |
+| 录制组件 | `src/engine/` | 无界面的辅助进程，调用 OBS Studio 33.0.1 的 libobs 进行采集与编码，写入磁盘环形缓存。与应用程序通过命名管道通信（[协议](src/engine/PROTOCOL.md)），异常退出后由应用程序自动重启 |
+| ffmpeg | `ffmpeg/` | 精简构建的 FFmpeg 9.0.2，用于保存校验、回退拼接、剪辑导出、读取视频信息与生成缩略图 |
+| 安装程序 | `installer/` | Inno Setup 6 |
 
-## 目前的不足
+每次保存时，ffmpeg 会同时转换片段的第一个分段作为参照，应用程序写出的结果必须与之逐字节一致才会采用；不一致时改为由 ffmpeg 拼接整个片段。
 
-- 我只在自己的 Windows 11 + AMD 显卡上完整测过。N 卡和 Intel 的编码参数是照着 OBS 的推荐值配的，还没在真机上跑过。用着有问题欢迎提 [Issue](https://github.com/Lunafreya123/ReplayClipper/issues)，附上 `data\engine\logs\engine.log` 会很有帮助。
-- 独占全屏的游戏和 HDR 画面还没测过。
-- 暂时不支持 AV1 编码。
+## 已知问题
 
-## 自己编译
+- 目前仅在 Windows 11 与 AMD 显卡上完成完整测试。NVIDIA 与 Intel 编码器的参数参照 OBS 的推荐设置，尚未在实际硬件上验证。
+- 尚未测试独占全屏模式的游戏与 HDR 输出。
+- 暂不支持 AV1 编码。
 
-步骤写在英文说明的 [Building](README.en.md#building) 一节。大致是：用 Windows 自带的 C# 编译器跑一下 `build.cmd` 就能编出程序；录制组件、ffmpeg、WebView2 这些二进制文件没放进仓库，要照说明放到对应的文件夹；安装包用 Inno Setup 6 打（`installer\build-installer.cmd`）。
+## 从源码构建
 
-## 许可
+项目使用 Windows 自带的 C# 编译器（.NET Framework 4.x），不需要 Visual Studio。录制组件、ffmpeg 与 WebView2 等二进制依赖不包含在仓库中，获取方式见 [Building](README.en.md#building)。
 
-本项目按 [GPL-3.0](LICENSE) 许可发布，其中录制组件的辅助程序（`src/engine/`）是 GPL-2.0-or-later。
-安装包里附带的 OBS Studio 核心库、FFmpeg 等第三方组件的版本、许可和源代码位置，见 [`engine/licenses/THIRD-PARTY-NOTICES.txt`](engine/licenses/THIRD-PARTY-NOTICES.txt) 和 [`ffmpeg/README.txt`](ffmpeg/README.txt)。
+```bat
+build.cmd                       :: 编译 ReplayClipper.exe、Uninstall.exe 与录制组件
+installer\build-installer.cmd   :: 生成 dist\ReplayClipper-Setup-<version>.exe（需要 Inno Setup 6）
+```
 
-“OBS”和“OBS Studio”是其各自所有者的商标。Replay Clipper 跟 OBS 项目没有关系，也没有得到他们的认可。
+## 参与贡献
+
+欢迎通过 [Issues](https://github.com/Lunafreya123/ReplayClipper/issues) 报告问题或提出建议，也欢迎提交 Pull Request。报告录制相关的问题时，请注明 Windows 版本与显卡型号，并附上 `data\engine\logs\engine.log`。
+
+## 许可证
+
+本项目基于 [GPL-3.0](LICENSE) 许可证发布；录制组件（`src/engine/`）基于 GPL-2.0-or-later。
+
+第三方组件的版本、许可证与源代码位置见 [`engine/licenses/THIRD-PARTY-NOTICES.txt`](engine/licenses/THIRD-PARTY-NOTICES.txt) 与 [`ffmpeg/README.txt`](ffmpeg/README.txt)。
+
+## 致谢
+
+- [OBS Studio](https://obsproject.com/)：录制组件所使用的 libobs 及插件
+- [FFmpeg](https://ffmpeg.org/)：保存校验、剪辑与缩略图
+- [Microsoft WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)：用户界面
+- [Inno Setup](https://jrsoftware.org/isinfo.php)：安装程序
+
+“OBS”与“OBS Studio”是其各自所有者的商标。本项目与 OBS 项目无关联，亦未获得其认可。
