@@ -152,6 +152,10 @@ namespace ReplayClipperEngine
             vi.scale_type = Obs.OBS_SCALE_BICUBIC;
             int rc = Obs.obs_reset_video(ref vi);
             if (rc != 0) { _vidW = 0; return "obs_reset_video returned " + rc; }
+            // libobs leaves both levels at 0 until they are set (the OBS frontend always sets them). Sources
+            // that convert HDR to SDR divide by the SDR white level, so with 0 every pixel becomes NaN and the
+            // picture is black. 300 / 1000 nits are OBS's defaults.
+            Obs.obs_set_video_levels(300f, 1000f);
             _vidW = w; _vidH = h; _vidFps = fps;
             return null;
         }
@@ -267,7 +271,11 @@ namespace ReplayClipperEngine
             else
             {
                 int method = cfg.Method == "dxgi" ? 1 : cfg.Method == "wgc" ? 2 : 0;
-                _display = Source("monitor_capture", "rc-display", Settings("monitor_id", monitorId, "method", method, "capture_cursor", cfg.Cursor));
+                // The recording is SDR (Rec. 709). force_sdr maps an HDR desktop with the display's own
+                // "SDR content brightness" setting, so the desktop and SDR games look as they do with HDR off;
+                // HDR highlights above that level are clipped. Without it libobs tone-maps the whole picture,
+                // which makes SDR content about one stop darker.
+                _display = Source("monitor_capture", "rc-display", Settings("monitor_id", monitorId, "method", method, "capture_cursor", cfg.Cursor, "force_sdr", true));
             }
             // A scene item with "scale to inner bounds" fits whatever size the source has into the canvas,
             // centred, aspect kept. libobs re-evaluates it whenever the source size changes, so a display
@@ -315,7 +323,14 @@ namespace ReplayClipperEngine
         static void ReleaseScene()
         {
             for (uint ch = 0; ch < 6; ch++) Obs.obs_set_output_source(ch, IntPtr.Zero);
-            if (_scene != IntPtr.Zero) { Obs.obs_scene_release(_scene); _scene = IntPtr.Zero; }
+            // The main canvas holds its own reference to every scene (SCENE_REF in OBS 31+), so releasing ours
+            // alone would keep the scene and the display capture alive until obs_shutdown. Remove it first.
+            if (_scene != IntPtr.Zero)
+            {
+                Obs.obs_source_remove(Obs.obs_scene_get_source(_scene));
+                Obs.obs_scene_release(_scene);
+                _scene = IntPtr.Zero;
+            }
             if (_display != IntPtr.Zero) { Obs.obs_source_release(_display); _display = IntPtr.Zero; }
             if (_desktop != IntPtr.Zero) { Obs.obs_source_release(_desktop); _desktop = IntPtr.Zero; }
             if (_mic != IntPtr.Zero) { Obs.obs_source_release(_mic); _mic = IntPtr.Zero; }
@@ -422,7 +437,7 @@ namespace ReplayClipperEngine
                          "directory", cfg.RingDir.Replace('\\', '/'), "format", nameFormat, "extension", "ts", "allow_spaces", false);
             _ring = Obs.obs_output_create(Obs.U("ffmpeg_muxer"), Obs.U("rc-ring"), s, IntPtr.Zero);
             Obs.obs_data_release(s);
-            if (_ring == IntPtr.Zero) { Ring.EndSession(false, now); ReleaseOutputs(); return "ring output could not be created"; }
+            if (_ring == IntPtr.Zero) { Ring.EndSession(false, now); ReleaseOutputs(); Ring.DiscardSession(); return "ring output could not be created"; }
             Obs.obs_output_set_video_encoder(_ring, _venc);
             Obs.obs_output_set_audio_encoder(_ring, _aenc, UIntPtr.Zero);
             IntPtr sh = Obs.obs_output_get_signal_handler(_ring);
@@ -455,14 +470,33 @@ namespace ReplayClipperEngine
                     }
                 }
                 if (!started && err == null) err = "no start signal within 10 s";
+
+                // libobs signals "start" as soon as the encoders are hooked up, before anything is encoded. An encoder
+                // that fails on its first frames stops the output a moment later; wait for the first packet so that
+                // such a failure moves on to the next candidate instead of being retried with the same encoder.
+                Stopwatch fw = Stopwatch.StartNew();
+                while (err == null && Obs.obs_output_get_total_frames(_ring) <= 0 && fw.ElapsedMilliseconds < 5000)
+                {
+                    Thread.Sleep(10);
+                    PumpUiTasks();
+                    ObsEvent e = null;
+                    lock (Events) { if (Events.Count > 0) e = Events.Dequeue(); }
+                    if (e == null) continue;
+                    if (e.Kind == 2)
+                        err = "stopped on its first frames with code " + e.Code + ": " + (Obs.S(Obs.obs_output_get_last_error(_ring)) ?? Obs.S(Obs.obs_encoder_get_last_error(_venc)) ?? "");
+                    else if (e.Kind == 3) Ring.OnFileChanged(e.Text, e.Ms);
+                }
             }
             if (err != null)
             {
                 if (Obs.obs_output_active(_ring)) Obs.obs_output_force_stop(_ring);
                 Ring.EndSession(false, Ring.ToUnixMs(DateTime.UtcNow));
                 ReleaseOutputs();
+                Ring.DiscardSession();
                 return err.Trim();
             }
+            // this encoder really records: only now may footage of another format be deleted
+            Ring.CommitFormat();
 
             // known once the encoder is running; 1024 samples for AAC
             uint priming = Obs.obs_encoder_get_priming_samples(_aenc);

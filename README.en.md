@@ -43,7 +43,7 @@ Replay Clipper records the screen continuously in the background and saves the m
 
 ## Installation
 
-Download `ReplayClipper-Setup-x.y.z.exe` from the [Releases](https://github.com/Lunafreya123/ReplayClipper/releases/latest) page and run it. It installs to `%LOCALAPPDATA%\Programs\ReplayClipper` by default; the location can be changed during setup.
+Download `ReplayClipper-Setup-x.y.z.exe` from the [Releases](https://github.com/Lunafreya123/ReplayClipper/releases/latest) page and run it. It installs to `%LOCALAPPDATA%\Programs\ReplayClipper` by default; another empty folder can be chosen during setup.
 
 > [!NOTE]
 > The installer is not code-signed. If Windows SmartScreen shows "Windows protected your PC", select "More info", then "Run anyway".
@@ -124,7 +124,8 @@ On every save, ffmpeg also converts the first segment of the clip as a reference
 ## Known issues
 
 - Fully tested only on Windows 11 with an AMD GPU. The NVIDIA and Intel encoder settings follow OBS's recommended values but have not been verified on real hardware.
-- Exclusive-fullscreen games and HDR output have not been tested.
+- Exclusive-fullscreen games have not been tested.
+- When the display is in HDR mode, the picture is recorded in SDR using Windows' "SDR content brightness" setting; HDR highlights above that level are clipped. Recording HDR video is not supported yet.
 - AV1 encoding is not supported yet.
 
 ## Building

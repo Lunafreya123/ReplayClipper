@@ -1200,8 +1200,17 @@ namespace ReplayClipper
             string warn = null;
             if (deleteSource)
             {
-                try { Recycle(src); sourceDeleted = true; }
-                catch (Exception ex) { warn = Tr("片段已导出，但原视频未能移至回收站：", "The clip was exported, but the original couldn't be moved to the Recycle Bin: ") + ex.Message; }
+                // 先确认导出的文件读得出来、长度也对，才动原视频：ffmpeg 返回成功不等于文件完好
+                if (!dp.Ok || dp.Duration < (end - start) - 1.0)
+                {
+                    Log("export check failed: " + dstName + " ok=" + dp.Ok + " duration=" + dp.Duration.ToString("F2", Inv) + " expected=" + (end - start).ToString("F2", Inv));
+                    warn = Tr("片段已导出，但导出文件的时长与所选范围不符，原视频已保留。", "The clip was exported, but its length doesn't match the selection, so the original was kept.");
+                }
+                else
+                {
+                    try { Recycle(src); sourceDeleted = true; }
+                    catch (Exception ex) { warn = Tr("片段已导出，但原视频未能移至回收站：", "The clip was exported, but the original couldn't be moved to the Recycle Bin: ") + ex.Message; }
+                }
             }
 
             Log("export " + dstName + " " + fi.Length + " bytes");
@@ -1214,21 +1223,42 @@ namespace ReplayClipper
             return d;
         }
 
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct SHFILEOPSTRUCT
+        {
+            public IntPtr hwnd;
+            public uint wFunc;
+            public string pFrom;
+            public string pTo;
+            public ushort fFlags;
+            [MarshalAs(UnmanagedType.Bool)] public bool fAnyOperationsAborted;
+            public IntPtr hNameMappings;
+            public string lpszProgressTitle;
+        }
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        static extern int SHFileOperationW(ref SHFILEOPSTRUCT op);
+        const uint FO_DELETE = 3;
+        const ushort FOF_SILENT = 0x4, FOF_NOCONFIRMATION = 0x10, FOF_ALLOWUNDO = 0x40, FOF_NOERRORUI = 0x400, FOF_WANTNUKEWARNING = 0x4000;
+
+        // 移到回收站。放不进回收站的（网络位置、U 盘、超过回收站容量的大文件）Windows 会先问一句"要永久删除吗"，
+        // 而不是不声不响地直接删掉——页面上说的是"可以从回收站还原"
         static void Recycle(string full)
         {
-            try
+            IntPtr owner = GetForegroundWindow();       // 用户刚在本程序的窗口里点了删除：确认框跟着这个窗口
+            uint pid;
+            GetWindowThreadProcessId(owner, out pid);
+            if (pid != (uint)Process.GetCurrentProcess().Id) owner = IntPtr.Zero;
+            var op = new SHFILEOPSTRUCT();
+            op.hwnd = owner;
+            op.wFunc = FO_DELETE;
+            op.pFrom = full + "\0";                     // 以两个 \0 结尾的列表（结尾的另一个由封送加上）
+            op.fFlags = (ushort)(FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_WANTNUKEWARNING | FOF_SILENT | FOF_NOERRORUI);
+            int rc = SHFileOperationW(ref op);
+            if (op.fAnyOperationsAborted) throw new ApiError(500, Tr("删除已取消。", "Deletion was cancelled."));
+            if (rc != 0 || File.Exists(full))
             {
-                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(full,
-                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
-                    Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
-            }
-            catch (OperationCanceledException)
-            {
-                throw new ApiError(500, Tr("删除已取消。", "Deletion was cancelled."));
-            }
-            catch (IOException ex)
-            {
-                throw new ApiError(500, Tr("文件正在使用中，请稍后重试：", "The file is in use. Try again later: ") + ex.Message);
+                Log("recycle failed (0x" + rc.ToString("X") + "): " + full);
+                throw new ApiError(500, Tr("文件正在使用中或无法删除，请稍后重试。", "The file is in use or can't be deleted. Try again later.") + " (0x" + rc.ToString("X") + ")");
             }
             Log("recycled " + full);
         }
@@ -1326,8 +1356,17 @@ namespace ReplayClipper
         {
             try
             {
-                if (!File.Exists(SettingsFile)) return;
-                var d = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(File.ReadAllText(SettingsFile, Encoding.UTF8));
+                // 设置文件坏了（比如写的时候断了电）就用上一次的备份，不要悄悄全部回到默认值：
+                // 那样开机自启动后不会录制，保存位置和快捷键也都变了
+                Dictionary<string, object> d = null;
+                try { d = ReadSettingsFile(SettingsFile); }
+                catch (Exception ex) { Log("LoadSettings: settings.json unreadable (" + ex.Message + "), using the backup"); }
+                if (d == null)
+                {
+                    try { d = ReadSettingsFile(SettingsFile + ".bak"); }
+                    catch (Exception ex) { Log("LoadSettings: settings.json.bak unreadable: " + ex.Message); }
+                }
+                if (d == null) return;
                 object o;
                 if (d != null && d.TryGetValue("obsPath", out o)) SettingObsPath = o as string;
                 if (d != null && d.TryGetValue("window", out o)) SettingWindow = o as string;
@@ -1386,12 +1425,39 @@ namespace ReplayClipper
                 d["closeAction"] = SettingCloseAction;
                 d["legacyCleaned"] = SettingLegacyCleaned;
                 if (!string.IsNullOrEmpty(SettingObsPath)) d["obsPath"] = SettingObsPath;      // 1.0 版留下的，卸载时清理 OBS 里的旧配置还用得着
-                lock (SettingsLock)
-                    File.WriteAllText(SettingsFile, new JavaScriptSerializer().Serialize(d), new UTF8Encoding(false));
+                string json = new JavaScriptSerializer().Serialize(d);
+                lock (SettingsLock) WriteSettingsFile(json);
                 SettingsMigrated = false;
                 SettingsFromV1 = false;
             }
             catch (Exception ex) { Log("SaveSettings: " + ex.Message); }
+        }
+
+        // 没有这个文件时返回 null；文件是空的、全是 0 或者不是 JSON 对象时抛出异常
+        static Dictionary<string, object> ReadSettingsFile(string path)
+        {
+            if (!File.Exists(path)) return null;
+            string text = File.ReadAllText(path, Encoding.UTF8);
+            if (text.Trim().Trim('\0').Length == 0) throw new InvalidDataException("the file is empty");
+            var d = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(text);
+            if (d == null) throw new InvalidDataException("not a JSON object");
+            return d;
+        }
+
+        // 先写到临时文件并落盘，再整个换上去（原来那份留作 settings.json.bak）：写到一半断电也不会只剩一个坏文件
+        static void WriteSettingsFile(string json)
+        {
+            string tmp = SettingsFile + ".tmp";
+            byte[] bytes = new UTF8Encoding(false).GetBytes(json);
+            using (var fs = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                fs.Write(bytes, 0, bytes.Length);
+                fs.Flush(true);
+            }
+            if (!File.Exists(SettingsFile)) { File.Move(tmp, SettingsFile); return; }
+            try { File.Replace(tmp, SettingsFile, SettingsFile + ".bak", true); }
+            catch (IOException) { File.Copy(tmp, SettingsFile, true); File.Delete(tmp); }      // 换不了（某些网络盘、文件系统）：退回到直接覆盖
+            catch (PlatformNotSupportedException) { File.Copy(tmp, SettingsFile, true); File.Delete(tmp); }
         }
 
         // ---- 显示器
@@ -1555,7 +1621,7 @@ namespace ReplayClipper
 
         // ------------------------------------------------------------------ 登记到系统的"已安装的应用"
 
-        const string AppVersion = "2.0.1";
+        const string AppVersion = "2.0.2";
         const string UninstallKeyParent = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall";
 
         // 注册表里这一条的名字。环境变量仅测试用（让测试拷贝登记到另一条上，不抢正式版的）

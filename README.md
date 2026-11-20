@@ -43,7 +43,7 @@ Replay Clipper 在后台持续录制屏幕，并通过全局快捷键将最近�
 
 ## 安装
 
-从 [Releases](https://github.com/Lunafreya123/ReplayClipper/releases/latest) 页面下载 `ReplayClipper-Setup-x.y.z.exe` 并运行。默认安装到 `%LOCALAPPDATA%\Programs\ReplayClipper`，可在安装时更改。
+从 [Releases](https://github.com/Lunafreya123/ReplayClipper/releases/latest) 页面下载 `ReplayClipper-Setup-x.y.z.exe` 并运行。默认安装到 `%LOCALAPPDATA%\Programs\ReplayClipper`，可在安装时更改为其他空文件夹。
 
 > [!NOTE]
 > 安装程序未进行代码签名。如果 Windows SmartScreen 显示“Windows 已保护你的电脑”，请选择“更多信息”→“仍要运行”。
@@ -124,7 +124,8 @@ flowchart LR
 ## 已知问题
 
 - 目前仅在 Windows 11 与 AMD 显卡上完成完整测试。NVIDIA 与 Intel 编码器的参数参照 OBS 的推荐设置，尚未在实际硬件上验证。
-- 尚未测试独占全屏模式的游戏与 HDR 输出。
+- 尚未测试独占全屏模式的游戏。
+- 显示器开启 HDR 时，画面按 Windows 的“SDR 内容亮度”转换为 SDR 录制，超出该亮度的 HDR 高光会被截断；暂不支持录制 HDR 视频。
 - 暂不支持 AV1 编码。
 
 ## 从源码构建

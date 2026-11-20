@@ -258,6 +258,9 @@ namespace ReplayClipper
             readonly System.Windows.Forms.Timer idleTimer = new System.Windows.Forms.Timer();
             bool lastMaximized;
             bool reallyClose;            // 这次关闭是真的要结束，而不是缩到托盘
+            bool pageAlive;              // 页面已加载好、能回应（窗口组件的页面进程崩溃后为 false，直到重新加载完）
+            int crashReloads;            // 页面进程崩溃后自动重新加载的次数（一分钟内）
+            DateTime crashWindowStart;
             bool stayHidden = StartInBackground;      // 开机自启动的那一次：窗口先不出现，页面也等到第一次打开窗口时才加载
             public bool Started;
 
@@ -319,7 +322,7 @@ namespace ReplayClipper
             {
                 string action = SettingCloseAction;
                 if (action == "exit") { RequestExit(true); return; }
-                if (action == "ask" && Visible && web.CoreWebView2 != null && Started)
+                if (action == "ask" && Visible && web.CoreWebView2 != null && Started && pageAlive)
                 {
                     if (IsIconic(Handle)) ShowWindow(Handle, 9);      // 窗口最小化着：先还原，对话框才看得见
                     Activate();
@@ -532,10 +535,11 @@ namespace ReplayClipper
 
                     web.CoreWebView2.WebMessageReceived += OnWebMessage;
                     web.CoreWebView2.NewWindowRequested += delegate(object s, CoreWebView2NewWindowRequestedEventArgs a) { a.Handled = true; };
-                    web.CoreWebView2.ProcessFailed += delegate(object s, CoreWebView2ProcessFailedEventArgs a) { Log("WebView2 process failed: " + a.ProcessFailedKind); };
+                    web.CoreWebView2.ProcessFailed += OnProcessFailed;
                     // 页面每次重新载入（比如换了语言）后，再告诉它一次窗口现在是不是最大化：上面那段脚本里写的是程序启动时的状态
-                    web.CoreWebView2.NavigationCompleted += delegate
+                    web.CoreWebView2.NavigationCompleted += delegate(object s, CoreWebView2NavigationCompletedEventArgs a)
                     {
+                        pageAlive = a.IsSuccess;
                         lastMaximized = WindowState != FormWindowState.Maximized;
                         NotifyState();
                     };
@@ -548,6 +552,41 @@ namespace ReplayClipper
                     Started = false;
                     CloseForReal();
                 }
+            }
+
+            // 窗口组件的进程出了问题。页面进程崩溃或卡死：页面（连同右上角的按钮）都不能用了，重新加载；
+            // 整个窗口组件退出：这个窗口救不回来，关掉它，改用 Edge 的应用窗口（程序留在托盘里，录制和快捷键照常）
+            void OnProcessFailed(object sender, CoreWebView2ProcessFailedEventArgs a)
+            {
+                CoreWebView2ProcessFailedKind kind = a.ProcessFailedKind;
+                Log("WebView2 process failed: " + kind);
+                if (reallyClose) return;
+                if (kind == CoreWebView2ProcessFailedKind.BrowserProcessExited)
+                {
+                    pageAlive = false;
+                    BeginInvoke((Action)delegate
+                    {
+                        if (reallyClose) return;
+                        if (!Visible) StartInBackground = true;      // 窗口原本藏着：不要突然弹出一个浏览器窗口，等用户从托盘里打开
+                        Started = false;
+                        CloseForReal();
+                    });
+                }
+                else if (kind == CoreWebView2ProcessFailedKind.RenderProcessExited || kind == CoreWebView2ProcessFailedKind.RenderProcessUnresponsive)
+                {
+                    pageAlive = false;
+                    BeginInvoke((Action)ReloadAfterCrash);
+                }
+            }
+
+            void ReloadAfterCrash()
+            {
+                if (reallyClose || web.CoreWebView2 == null) return;
+                DateTime now = DateTime.UtcNow;
+                if ((now - crashWindowStart).TotalSeconds > 60) { crashWindowStart = now; crashReloads = 0; }
+                if (++crashReloads > 3) { Log("WebView2: the page keeps failing, not reloading again"); return; }
+                try { web.CoreWebView2.Reload(); }
+                catch (Exception ex) { Log("WebView2 reload failed: " + ex.Message); }
             }
 
             // 页面右上角三个键（以及老版本下的拖动）发来的消息

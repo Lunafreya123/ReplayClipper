@@ -9,7 +9,7 @@
 ; Keep AppVersion below in step with "AppVersion" in ..\src\Program.cs.
 
 #define AppName "Replay Clipper"
-#define AppVersion "2.0.1"
+#define AppVersion "2.0.2"
 #define AppExe "ReplayClipper.exe"
 #define AppDir ".."
 ; The app holds this mutex for as long as it runs, also while it is only an icon in the notification area.
@@ -70,8 +70,8 @@ Name: "en"; MessagesFile: "compiler:Default.isl"
 Name: "zh"; MessagesFile: "languages\ChineseSimplified.isl"
 
 [CustomMessages]
-en.FolderNotEmpty=This folder is not empty:%n%n%1%n%nInstall here anyway?
-zh.FolderNotEmpty=该文件夹不为空：%n%n%1%n%n是否仍要安装到此位置？
+en.FolderNotEmpty=This folder already contains other files:%n%n%1%n%n{#AppName} needs a folder of its own, so that installing and uninstalling it can't overwrite or remove other files. Choose an empty or new folder.
+zh.FolderNotEmpty=该文件夹中已有其他文件：%n%n%1%n%n{#AppName} 需要单独的文件夹，以免安装或卸载时覆盖、删除其他文件。请选择一个空文件夹，或新建一个文件夹。
 en.Finishing=Finishing installation...
 zh.Finishing=正在完成安装...
 en.CloseRunningApp={#AppName} is running.%n%nClick OK to let Setup close it and continue, or Cancel to exit. Background recording stops and unsaved footage is discarded.
@@ -206,7 +206,10 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
+  // Only an empty folder or an existing installation: the uninstaller removes the app's own subfolders.
   if (CurPageID = wpSelectDir) and FolderHasOtherFiles(WizardDirValue) then
-    Result := SuppressibleMsgBox(FmtMessage(CustomMessage('FolderNotEmpty'), [WizardDirValue]),
-      mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDYES) = IDYES;
+  begin
+    SuppressibleMsgBox(FmtMessage(CustomMessage('FolderNotEmpty'), [WizardDirValue]), mbError, MB_OK, IDOK);
+    Result := False;
+  end;
 end;

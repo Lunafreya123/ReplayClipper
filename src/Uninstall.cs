@@ -222,7 +222,10 @@ namespace ReplayClipper
             DataDir = Path.Combine(target, "data");
             LoadSettings();          // 界面用的是哪种语言、片段存在哪里
 
-            if (!File.Exists(Path.Combine(target, "ReplayClipper.exe")) || !File.Exists(Path.Combine(target, "ui", "index.html")))
+            // 程序不会装在盘符根目录（安装程序不允许）。万一是：不删任何东西，免得把同名的文件夹当成程序的删掉
+            bool driveRoot = false;
+            try { driveRoot = string.Equals(Path.GetPathRoot(target + "\\").TrimEnd('\\'), target, StringComparison.OrdinalIgnoreCase); } catch { driveRoot = true; }
+            if (driveRoot || !File.Exists(Path.Combine(target, "ReplayClipper.exe")) || !File.Exists(Path.Combine(target, "ui", "index.html")))
             {
                 Ask(Tr("未在此位置找到 " + AppName + " 的程序文件，卸载已取消：\n", AppName + "'s program files weren't found here. Uninstall was cancelled:\n") + target,
                     MbOk | MbWarning, IdOk);
@@ -477,7 +480,8 @@ namespace ReplayClipper
                 Environment.GetFolderPath(Environment.SpecialFolder.Programs),
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
             };
-            string prefix = target.TrimEnd('\\') + "\\";
+            // 只删指向本程序自己的快捷方式。按"在这个文件夹下面"来比的话，程序装在别的软件旁边时会连它们的快捷方式一起删掉
+            string[] ours = { Path.Combine(target, "ReplayClipper.exe"), Path.Combine(target, "Uninstall.exe") };
             foreach (string folder in folders)
             {
                 if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) continue;
@@ -489,7 +493,7 @@ namespace ReplayClipper
                     {
                         object sc = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { lnk });
                         string tp = sc.GetType().InvokeMember("TargetPath", BindingFlags.GetProperty, null, sc, null) as string;
-                        if (!string.IsNullOrEmpty(tp) && tp.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) TryDeleteFile(lnk);
+                        if (!string.IsNullOrEmpty(tp) && ours.Any(o => string.Equals(tp, o, StringComparison.OrdinalIgnoreCase))) TryDeleteFile(lnk);
                     }
                     catch { }
                 }
@@ -505,32 +509,58 @@ namespace ReplayClipper
                 "使用说明.txt",      // 早期版本的说明文件
                 "Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll",
             };
-            // data 里有设置、日志、回放缓存；obs 是 1.0 版的脚本所在的文件夹（升级安装后可能还留着）
-            string[] dirs = { "ui", "engine", "obs", "ffmpeg", "src", "data" };
+            // 整个删掉的子文件夹：只有里面有本程序特有的文件时才算是程序自己的（同名的文件夹可能是用户的）。
+            // obs 是 1.0 版的脚本所在的文件夹（升级安装后可能还留着）
+            var dirs = new List<string>();
+            foreach (string[] dm in new[]
+            {
+                new[] { "ui", "index.html" },
+                new[] { "engine", "bin\\64bit\\ReplayClipperEngine.exe" },
+                new[] { "ffmpeg", "README.txt" },
+                new[] { "src", "engine\\PROTOCOL.md" },
+                new[] { "obs", ScriptFileName },
+            })
+            {
+                string marker = Path.Combine(target, dm[0], dm[1]);
+                if (!File.Exists(marker)) continue;
+                if (dm[0] == "ffmpeg")
+                {
+                    string text = "";
+                    try { text = File.ReadAllText(marker); } catch { }
+                    if (text.IndexOf("Replay Clipper", StringComparison.Ordinal) < 0) continue;
+                }
+                dirs.Add(dm[0]);
+            }
+            // data 里只删程序自己建的东西（设置、日志、回放缓存、录制组件和窗口组件的数据），删空了才删 data 本身
+            string data = Path.Combine(target, "data");
+            string[] dataFiles = { "settings.json", "settings.json.bak", "settings.json.tmp", "log.txt", "instance.txt" };
+            string[] dataDirs = { "buffer", "engine", "webview", "browser" };
 
             // 刚关掉的窗口组件可能还要一两秒才松开文件，多试几次
             for (int attempt = 0; attempt < 14; attempt++)
             {
                 bool allGone = true;
-                foreach (string f in files)
+                foreach (string f in files.Concat(dataFiles.Select(n => "data\\" + n)))
                 {
                     string p = Path.Combine(target, f);
                     TryDeleteFile(p);
                     if (File.Exists(p)) allGone = false;
                 }
-                foreach (string d in dirs)
+                foreach (string d in dirs.Concat(dataDirs.Select(n => "data\\" + n)))
                 {
                     string p = Path.Combine(target, d);
                     try { if (Directory.Exists(p)) Directory.Delete(p, true); } catch { }
                     if (Directory.Exists(p)) allGone = false;
                 }
+                try { if (Directory.Exists(data) && !Directory.EnumerateFileSystemEntries(data).Any()) Directory.Delete(data); } catch { }
                 if (allGone) break;
                 Thread.Sleep(500);
             }
 
             var left = new List<string>();
             foreach (string f in files) if (File.Exists(Path.Combine(target, f))) left.Add(f);
-            foreach (string d in dirs) if (Directory.Exists(Path.Combine(target, d))) left.Add(d + "\\");
+            foreach (string d in dirs.Concat(dataDirs.Select(n => "data\\" + n))) if (Directory.Exists(Path.Combine(target, d))) left.Add(d + "\\");
+            foreach (string f in dataFiles) if (File.Exists(Path.Combine(data, f))) left.Add("data\\" + f);
             if (left.Count > 0)
                 problems.Add(Tr("以下文件正在使用中，未能删除，请稍后手动删除：" + target + "\\ 下的 " + string.Join("、", left.ToArray()),
                                 "These items are in use and couldn't be deleted. Delete them manually later: " + string.Join(", ", left.ToArray()) + " in " + target));

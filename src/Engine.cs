@@ -246,6 +246,7 @@ namespace ReplayClipper
             public readonly ManualResetEvent Ready = new ManualResetEvent(false);
             public volatile bool Dead;
             public volatile bool Closing;     // we asked it to quit
+            public volatile bool StoppedByItself;   // its recording stopped on its own (encoder error, GPU device lost)
             public string Fatal;
             public DateTime LastMessageUtc = DateTime.UtcNow;
             public long NextId = 1;
@@ -418,6 +419,7 @@ namespace ReplayClipper
             else if (ev == "stopped")
             {
                 Log("recording stopped by itself: " + Str(d, "error") + " " + Str(d, "message"));
+                l.StoppedByItself = true;
                 SetStatus(delegate(EngineStatus s) { s.Recording = false; s.LastError = Str(d, "error"); s.LastErrorMessage = Str(d, "message"); });
             }
         }
@@ -601,6 +603,10 @@ namespace ReplayClipper
                     _nextAttemptUtc = now.AddSeconds(wait);
                     try
                     {
+                        // A recording that stopped by itself is restarted in a fresh helper. The usual cause is the
+                        // GPU (driver reset or update): libobs rebuilds its D3D11 device only when it presents to a
+                        // display, and the helper has none, so the old process would keep failing or record black.
+                        if (alive && l.StoppedByItself) { Log("starting a fresh helper after the recording stopped by itself"); alive = false; }
                         if (!alive) { EndLink(false); l = EnsureLink(); }
                         DoStart(l, _wanted);
                         _healthySinceUtc = DateTime.UtcNow;

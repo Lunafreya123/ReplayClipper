@@ -297,6 +297,8 @@ namespace ReplayClipper
         static readonly Dictionary<int, int> HotkeyIds = new Dictionary<int, int>();      // 登记号 → 保存多少秒；只在后台线程上读写
         static bool HotkeysSuspended;
         static System.Threading.Timer SuspendTimer;
+        static System.Threading.Timer HotkeyRetryTimer;     // 被别的程序占着的快捷键：隔一会儿再试着登记
+        const int HotkeyRetryMs = 30000;
 
         static readonly ManualResetEvent ExitRequested = new ManualResetEvent(false);
         static Action ShowWindowHandler;        // 把界面窗口显示出来（由当前使用的那种窗口提供）
@@ -323,6 +325,7 @@ namespace ReplayClipper
                             ResumeHotkeys();
                         });
                     }, null, Timeout.Infinite, Timeout.Infinite);
+                    HotkeyRetryTimer = new System.Threading.Timer(delegate { BgPost(RetryRefusedHotkeys); }, null, HotkeyRetryMs, HotkeyRetryMs);
                     CreateTray();
                     Log("control window hwnd=0x" + ControlWnd.Handle.ToInt64().ToString("X"));
                     ready.Set();
@@ -341,6 +344,31 @@ namespace ReplayClipper
             t.Start();
             ready.WaitOne(10000);
             BgSend(ResumeHotkeys);
+            // 开机自启动时窗口不出现，界面上"已被占用"的标记没人看得见：在屏幕角上说一声，不然按了没反应也不知道为什么
+            List<string> inUse;
+            lock (SlotLock) inUse = new List<string>(HotkeysInUse);
+            if (inUse.Count > 0)
+                ShowToast(Tr("快捷键已被其他程序占用", inUse.Count == 1 ? "Hotkey used by another program" : "Hotkeys used by another program"),
+                          Tr(string.Join("、", inUse.ToArray()) + "，可在主界面的“编辑”中更改", string.Join(", ", inUse.ToArray()) + ". Change it under Edit in the main window."), 8000);
+        }
+
+        // 启动时登记不上的快捷键，占着它的程序关掉后就能用了：定时再试，不用重启本程序
+        static void RetryRefusedHotkeys()
+        {
+            if (HotkeysSuspended || FakeHotkeys || ControlWnd == null) return;
+            lock (SlotLock) { if (HotkeysInUse.Count == 0) return; }
+            List<Slot> slots = CurrentSlots();
+            for (int i = 0; i < slots.Count; i++)
+            {
+                if (HotkeyIds.ContainsKey(i + 1)) continue;
+                Hotkey k = ParseHotkey(slots[i].Hotkey);
+                if (k == null) continue;
+                lock (SlotLock) { if (!HotkeysInUse.Contains(k.Text)) continue; }
+                if (!RegisterHotKey(ControlWnd.Handle, i + 1, k.Mods | ModNoRepeat, k.Vk)) continue;
+                HotkeyIds[i + 1] = slots[i].Seconds;
+                lock (SlotLock) HotkeysInUse.Remove(k.Text);
+                Log("hotkey available again: " + k.Text);
+            }
         }
 
         static void StopBackground()

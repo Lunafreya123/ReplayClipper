@@ -952,6 +952,9 @@ namespace ReplayClipper
         // 用户关掉录制。缓存里没保存的画面随之删掉（界面上会先问一句）。
         static async Task StopRecording()
         {
+            // 停止会删掉回放缓存，而正在保存的片段还在读它：等保存完再停
+            if (Interlocked.Read(ref SaveStartedTicks) != 0)
+                throw new ApiError(409, Tr("正在保存片段，请等保存完成后再停止录制。", "A clip is being saved. Stop recording after it has finished."));
             SettingRecOn = false;
             SaveSettings();
             RecChanged();
@@ -1301,6 +1304,10 @@ namespace ReplayClipper
             RecSettings old = SettingRec;
             string restart = RestartKind(old, s, plan);
             string phase = RecPhase;
+            // 重新开始录制会清掉或改动回放缓存，而正在保存的片段还在读它：这类改动等保存完再做
+            bool changesSource = old != null && !string.Equals(old.MonitorId, s.MonitorId, StringComparison.OrdinalIgnoreCase);
+            if ((phase == "on" || phase == "starting") && (restart != "none" || changesSource) && Interlocked.Read(ref SaveStartedTicks) != 0)
+                throw new ApiError(409, Tr("正在保存片段，请等保存完成后再更改这些设置。", "A clip is being saved. Change these settings after it has finished."));
             string oldBuffer = BufferDir;
             SettingRec = s;
             SettingBufferFolder = bufferParent;

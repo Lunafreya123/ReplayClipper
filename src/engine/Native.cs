@@ -101,6 +101,8 @@ namespace ReplayClipperEngine
         [return: MarshalAs(UnmanagedType.I1)]
         public static extern bool obs_reset_audio(ref AudioInfo oai);
         [DllImport(L, CallingConvention = CC)]
+        public static extern void obs_set_video_levels(float sdrWhiteLevel, float hdrNominalPeakLevel);
+        [DllImport(L, CallingConvention = CC)]
         public static extern IntPtr obs_get_video();
         [DllImport(L, CallingConvention = CC)]
         public static extern IntPtr obs_get_audio();
@@ -148,6 +150,8 @@ namespace ReplayClipperEngine
         public static extern IntPtr obs_source_create(byte[] id, byte[] name, IntPtr settings, IntPtr hotkeyData);
         [DllImport(L, CallingConvention = CC)]
         public static extern void obs_source_release(IntPtr source);
+        [DllImport(L, CallingConvention = CC)]
+        public static extern void obs_source_remove(IntPtr source);
         [DllImport(L, CallingConvention = CC)]
         public static extern void obs_source_update(IntPtr source, IntPtr settings);
         [DllImport(L, CallingConvention = CC)]

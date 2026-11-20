@@ -747,10 +747,12 @@ const fail = e => notify(e.message, { kind: 'error' });
 
 let dlgResolve = null;
 function confirmDlg(title, text, okLabel) {
+  if (dlgResolve) { dlgResolve(false); dlgResolve = null; }      // 上一个还开着（比如托盘那边又来了一个请求）：算作取消，不让它的文字被悄悄换掉
   $('dlgTitle').textContent = title;
   $('dlgText').textContent = text;
   $('dlgOk').textContent = okLabel || tr('确定', 'OK');
   $('overlay').hidden = false;
+  $('dlgOk').focus();                  // 焦点放进对话框：回车按的是有焦点的那个键，而不是打开对话框的那个按钮
   return new Promise(res => { dlgResolve = res; });
 }
 function closeDlg(val) {
@@ -2383,9 +2385,10 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'Tab') trapTab(e, $('closeDlg'));
     return;
   }
-  if (!$('overlay').hidden) {
+  if (!$('overlay').hidden) {          // 确认对话框：Esc 取消；回车由有焦点的按钮自己处理（焦点在"取消"上就是取消）
     if (e.key === 'Escape') closeDlg(false);
-    else if (e.key === 'Enter') closeDlg(true);
+    else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement && $('overlay').contains(e.target))) { e.preventDefault(); closeDlg(true); }
+    else if (e.key === 'Tab') trapTab(e, $('overlay'));
     return;
   }
   if (!$('langMenu').hidden) { if (e.key === 'Escape') closeLang(); return; }

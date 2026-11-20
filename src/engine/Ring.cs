@@ -77,6 +77,11 @@ namespace ReplayClipperEngine
         static int _bufferSeconds = 1800, _segmentSeconds = 2;
         static StreamWriter _idx;
         static int _idxLines;
+        // Load found segments of another format: they are kept out of the ring but stay on disk until the
+        // new recording has really started (CommitFormat). An encoder that fails to start must not cost the
+        // footage: the next candidate, or the next start with the original encoder, may still use it.
+        static string _pendingFormat;
+        static List<string> _pendingDelete;
         static string _session = "";
         public static string Session { get { return _session; } }
         static bool _sessionBroken;
@@ -138,16 +143,17 @@ namespace ReplayClipperEngine
             string old = null;
             try { if (System.IO.File.Exists(formatPath)) old = System.IO.File.ReadAllText(formatPath, Encoding.UTF8); } catch { }
             FileInfo[] files = new DirectoryInfo(dir).GetFiles(Prefix + "*.ts");
+            _pendingFormat = null; _pendingDelete = null;
             if (old != format)
             {
-                if (files.Length > 0) Log.Info("ring: format changed, deleting {0} old segment(s)", files.Length);
-                foreach (FileInfo f in files) { try { f.Delete(); } catch (Exception ex) { Log.Info("ring: cannot delete {0}: {1}", f.Name, ex.Message); } }
-                try { System.IO.File.Delete(Path.Combine(dir, IdxName)); } catch { }
-                files = new DirectoryInfo(dir).GetFiles(Prefix + "*.ts");
-                WriteAtomic(formatPath, format);
+                if (files.Length > 0) Log.Info("ring: format changed, {0} old segment(s) set aside until recording starts", files.Length);
+                _pendingFormat = format;
+                _pendingDelete = new List<string>();
+                foreach (FileInfo f in files) _pendingDelete.Add(f.Name);
+                files = new FileInfo[0];
             }
 
-            Dictionary<string, Seg> known = ReadIndex(Path.Combine(dir, IdxName));
+            Dictionary<string, Seg> known = _pendingFormat != null ? new Dictionary<string, Seg>() : ReadIndex(Path.Combine(dir, IdxName));
             List<Seg> list = new List<Seg>();
             List<FileInfo> unknown = new List<FileInfo>();
             foreach (FileInfo f in files)
@@ -186,10 +192,53 @@ namespace ReplayClipperEngine
                 Segs.Add(s); TotalBytes += s.Bytes; _totalFrames += s.VFrames;
                 prev = s;
             }
-            RewriteIndex();
+            if (_pendingFormat == null) RewriteIndex();     // otherwise the old index stays as it is until CommitFormat
             Loaded = true;
             Log.Info("ring: {0} segment(s) adopted, {1:F1} MB, {2:F1} s of footage, index built in {3} ms", Segs.Count, TotalBytes / 1048576.0,
                      BufferedSeconds(nowMs), sw.ElapsedMilliseconds);
+        }
+
+        /// <summary>The recording started: if Load set segments of another format aside, delete them now.</summary>
+        public static void CommitFormat()
+        {
+            if (_pendingFormat == null) return;
+            if (_pendingDelete.Count > 0) Log.Info("ring: format changed, deleting {0} old segment(s)", _pendingDelete.Count);
+            foreach (string name in _pendingDelete)
+            {
+                try { System.IO.File.Delete(Path.Combine(Dir, name)); }
+                catch (Exception ex) { Log.Info("ring: cannot delete {0}: {1}", name, ex.Message); }
+            }
+            try { System.IO.File.Delete(Path.Combine(Dir, IdxName)); } catch { }
+            WriteAtomic(Path.Combine(Dir, FormatName), _pendingFormat);
+            _pendingFormat = null; _pendingDelete = null;
+            RewriteIndex();
+        }
+
+        /// <summary>
+        /// The output of an encoder that failed to start: forget the file(s) of this session and delete them, so
+        /// that they are never adopted later as segments of whatever format ring.json names.
+        /// </summary>
+        public static void DiscardSession()
+        {
+            string session = _session;
+            if (session.Length == 0) return;
+            _open = null;
+            Closing.RemoveAll(x => x.Session == session);
+            List<Seg> mine = Segs.FindAll(x => x.Session == session);
+            foreach (Seg s in mine)
+            {
+                Segs.Remove(s);
+                if (s.Ready) { TotalBytes -= s.Bytes; _totalFrames -= s.VFrames; }
+                string path = Path.Combine(Dir, s.File);
+                // the muxer process may need a moment to let go of the file
+                for (int i = 0; i < 20 && System.IO.File.Exists(path); i++)
+                {
+                    try { System.IO.File.Delete(path); }
+                    catch (IOException) { System.Threading.Thread.Sleep(100); }
+                    catch (UnauthorizedAccessException) { System.Threading.Thread.Sleep(100); }
+                }
+                if (System.IO.File.Exists(path)) Log.Info("ring: cannot delete {0} of a failed start", s.File);
+            }
         }
 
         static string SessionOf(string name)
